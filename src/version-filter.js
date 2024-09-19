@@ -8,6 +8,20 @@ const daysBetween = (startDate, endDate = new Date()) =>
 const anyRegexMatch = (regexes) => (tags) =>
   regexes.some((regex) => tags.some((tag) => tag.match(regex)))
 
+const debugLog = (message, version, age) => {
+  core.debug(
+    `Version: ${JSON.stringify(
+      {
+        version,
+        age,
+        message,
+      },
+      null,
+      2,
+    )}`,
+  )
+}
+
 const versionFilter = (options) => (version) => {
   const {
     keepTags,
@@ -19,11 +33,10 @@ const versionFilter = (options) => (version) => {
   const createdAt = new Date(version.created_at)
   const age = daysBetween(createdAt)
 
-  core.debug(`Version: ${JSON.stringify(version)}`)
-  core.debug(`Version age: ${age} days`)
+  const log = (message) => debugLog(message, version, age)
 
   if (keepYoungerThan > age) {
-    core.debug(
+    log(
       `Keeping version ${version.name} because it is younger than ${keepYoungerThan} days`,
     )
     return false
@@ -32,32 +45,26 @@ const versionFilter = (options) => (version) => {
   const tags = version.metadata.container.tags
 
   if (pruneUntagged && (!tags || !tags.length)) {
-    core.debug(`Pruning version ${version.name} because it is unTagged`)
+    log(`Pruning version ${version.name} because it is unTagged`)
     return true
   }
 
   if (keepTags && tags && keepTags.some((keepTag) => tags.includes(keepTag))) {
-    core.debug(`Keeping version ${version.name} because it has a keep tag`)
+    log(`Keeping version ${version.name} because it has a keep tag`)
     return false
   }
 
   if (keepTagsRegexes && tags && anyRegexMatch(keepTagsRegexes)(tags)) {
-    core.debug(
-      `Keeping version ${version.name} because it matches a keep regex`,
-    )
+    log(`Keeping version ${version.name} because it matches a keep regex`)
     return false
   }
 
   if (pruneTagsRegexes && tags && anyRegexMatch(pruneTagsRegexes)(tags)) {
-    core.debug(
-      `Pruning version ${version.name} because it matches a prune regex`,
-    )
+    log(`Pruning version ${version.name} because it matches a prune regex`)
     return true
   }
 
-  core.debug(
-    `Keeping version ${version.name} because it did not match any filter`,
-  )
+  log(`Keeping version ${version.name} because it did not match any filter`)
   return false
 }
 
