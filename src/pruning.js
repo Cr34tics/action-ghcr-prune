@@ -122,7 +122,7 @@ const prune = (pruneVersion) => async (pruningList) => {
   for (const version of pruningList) {
     core.info(
       `Pruning version #${version.id} named '${version.name}' tags: ${(
-        version.metadata.container.tags || []
+        version?.metadata?.container?.tags || []
       ).join(', ')}...`,
     )
     try {
