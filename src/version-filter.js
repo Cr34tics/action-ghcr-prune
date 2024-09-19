@@ -12,7 +12,9 @@ const debugLog = (message, version, age) => {
   core.debug(
     `Version: ${JSON.stringify(
       {
-        version,
+        id: version.id,
+        name: version.name,
+        tags: version.metadata.container.tags,
         age,
         message,
       },

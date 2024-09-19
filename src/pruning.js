@@ -32,14 +32,12 @@ const getAllMultiPlatList = (listVersions, getManifest) => async () => {
   } while (lastPageSize >= PAGE_SIZE)
 
   for (const image of allVersions) {
-    core.debug(`Checking image: ${JSON.stringify(image)}`)
     if (image.metadata.container.tags.length == 0) {
       //no tags, so continue
       continue
     }
 
     const manifest = await getManifest(image.metadata.container.tags[0])
-    core.debug(`Manifest: ${JSON.stringify(manifest)}`)
     if (!multiPlatImage(manifest)) {
       //not a multi-plat image, so continue
       continue
@@ -61,9 +59,7 @@ const getMultiPlatPruningList =
     const digests = []
 
     for (const image of pruningList) {
-      core.debug(`Checking image: ${JSON.stringify(image)}`)
       const manifest = await getManifest(image.metadata.container.tags[0])
-      core.debug(`Manifest: ${JSON.stringify(manifest)}`)
       if (!multiPlatImage(manifest)) {
         //not a multi-plat image, so continue
         continue
