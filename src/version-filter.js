@@ -20,31 +20,44 @@ const versionFilter = (options) => (version) => {
   const age = daysBetween(createdAt)
 
   core.debug(`Version: ${JSON.stringify(version)}`)
-  core.debug(`Options: ${JSON.stringify(options)}`)
   core.debug(`Version age: ${age} days`)
 
   if (keepYoungerThan > age) {
+    core.debug(
+      `Keeping version ${version.name} because it is younger than ${keepYoungerThan} days`,
+    )
     return false
   }
 
   const tags = version.metadata.container.tags
 
   if (pruneUntagged && (!tags || !tags.length)) {
+    core.debug(`Pruning version ${version.name} because it is unTagged`)
     return true
   }
 
   if (keepTags && tags && keepTags.some((keepTag) => tags.includes(keepTag))) {
+    core.debug(`Keeping version ${version.name} because it has a keep tag`)
     return false
   }
 
   if (keepTagsRegexes && tags && anyRegexMatch(keepTagsRegexes)(tags)) {
+    core.debug(
+      `Keeping version ${version.name} because it matches a keep regex`,
+    )
     return false
   }
 
   if (pruneTagsRegexes && tags && anyRegexMatch(pruneTagsRegexes)(tags)) {
+    core.debug(
+      `Pruning version ${version.name} because it matches a prune regex`,
+    )
     return true
   }
 
+  core.debug(
+    `Keeping version ${version.name} because it did not match any filter`,
+  )
   return false
 }
 
