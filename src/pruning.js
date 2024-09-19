@@ -122,13 +122,25 @@ const prune = (pruneVersion) => async (pruningList) => {
 
     for (const version of pruningList) {
       core.info(`Pruning version #${version.id} named '${version.name}'...`)
-      await pruneVersion(version)
-      pruned.push(version)
+      try {
+        await pruneVersion(version)
+        pruned.push(version)
+      } catch (error) {
+        console.error(error)
+        core.debug(
+          `Failed to prune because of: ${JSON.stringify(version, null, 2)}`,
+        )
+        core.error(`Failed to prune because of: ${error}`)
+      }
     }
 
     core.endGroup()
   } catch (error) {
+    console.error(error)
     core.endGroup()
+    core.debug(
+      `Failed to prune because of: ${JSON.stringify(version, null, 2)}`,
+    )
     core.error(`Failed to prune because of: ${error}`)
   }
 
