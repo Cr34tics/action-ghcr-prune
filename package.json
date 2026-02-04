@@ -16,15 +16,22 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vlaurin/action-ghcr-prune.git"
+    "url": "git+https://github.com/Cr34tics/action-ghcr-prune.git"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "github",
+    "actions",
+    "ghcr",
+    "container-registry",
+    "prune",
+    "cleanup"
+  ],
+  "author": "Cr34tics",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/vlaurin/action-ghcr-prune/issues"
+    "url": "https://github.com/Cr34tics/action-ghcr-prune/issues"
   },
-  "homepage": "https://github.com/vlaurin/action-ghcr-prune#readme",
+  "homepage": "https://github.com/Cr34tics/action-ghcr-prune#readme",
   "dependencies": {
     "@actions/core": "^3.0.0",
     "@actions/github": "^9.0.0"
