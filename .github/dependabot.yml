@@ -4,22 +4,44 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    labels:
-      - 'priority:medium'
-      - 'type:dependency-upgrade'
     groups:
-      all:
-        patterns:
-          - '*'
+      security:
+        applies-to: security-updates
+        update-types:
+          - 'patch'
+          - 'minor'
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - 'patch'
+          - 'minor'
+      security-major:
+        applies-to: security-updates
+        update-types:
+          - 'major'
+      major:
+        applies-to: version-updates
+        update-types:
+          - 'major'
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-    labels:
-      - 'priority:low'
-      - 'type:dependency-upgrade'
     groups:
       all:
         patterns:
           - '*'
+
+  - package-ecosystem: docker
+    directory: /test
+    schedule:
+      interval: weekly
+    groups:
+      docker-minor-and-patch:
+        update-types:
+          - 'patch'
+          - 'minor'
+      docker-major:
+        update-types:
+          - 'major'

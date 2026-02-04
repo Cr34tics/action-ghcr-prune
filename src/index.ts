@@ -1,29 +1,26 @@
-const core = require('@actions/core')
-const github = require('@actions/github')
-const {
+import * as core from '@actions/core'
+import * as github from '@actions/github'
+import {
   deleteAuthenticatedUserContainerVersion,
   deleteOrgContainerVersion,
   deleteUserContainerVersion,
   listAuthenticatedUserContainerVersions,
   listOrgContainerVersions,
   listUserContainerVersions,
-} = require('./src/octokit')
-const {
+} from './octokit'
+import {
   getAllMultiPlatList,
   getMultiPlatPruningList,
   getPruningList,
   prune,
-} = require('./src/pruning')
-const { versionFilter } = require('./src/version-filter')
-const {
-  getManifest,
-  createDockerAPIClient,
-  dockerAPIGet,
-} = require('./src/docker-api.js')
+} from './pruning'
+import { versionFilter } from './version-filter'
+import { getManifest, createDockerAPIClient, dockerAPIGet } from './docker-api'
+import type { ContainerVersion } from './types'
 
-const asBoolean = (v) => 'true' == String(v)
+const asBoolean = (v: string): boolean => 'true' === v
 
-const versionSummary = (version) =>
+const versionSummary = (version: ContainerVersion): string =>
   JSON.stringify({
     id: version.id,
     name: version.name,
@@ -31,18 +28,18 @@ const versionSummary = (version) =>
     tags: version.metadata.container.tags,
   })
 
-const dryRunDelete = (version) =>
+const dryRunDelete = (version: ContainerVersion): Promise<void> =>
   new Promise((resolve) => {
     core.info(`Dry-run pruning of: ${versionSummary(version)}`)
     resolve()
   })
 
 const writeSummary = async (
-  container,
-  dryRun,
-  pruningVersions,
-  prunedVersions,
-) => {
+  container: string,
+  dryRun: boolean,
+  pruningVersions: ContainerVersion[],
+  prunedVersions: ContainerVersion[],
+): Promise<void> => {
   const allPruned = pruningVersions.length === prunedVersions.length
 
   let summary = core.summary.addHeading(
@@ -56,18 +53,18 @@ const writeSummary = async (
     )
   } else {
     summary = summary.addRaw(
-      `${allPruned ? ':white_check_mark:' : ':x:'} ${
-        prunedVersions.length
-      } out of ${
-        pruningVersions.length
-      } identified versions were pruned successfully.`,
+      `${allPruned ? ':white_check_mark:' : ':x:'} ${String(
+        prunedVersions.length,
+      )} out of ${String(
+        pruningVersions.length,
+      )} identified versions were pruned successfully.`,
     )
   }
 
   await summary
     .addHeading('Pruned versions', 3)
     .addRaw(
-      `The following ${prunedVersions.length} versions were successfully pruned:`,
+      `The following ${String(prunedVersions.length)} versions were successfully pruned:`,
     )
     .addTable([
       [
@@ -86,7 +83,7 @@ const writeSummary = async (
     .write()
 }
 
-const run = async () => {
+const run = async (): Promise<void> => {
   try {
     const token = core.getInput('token')
     const organization = core.getInput('organization')
@@ -110,14 +107,7 @@ const run = async () => {
 
     const keepLast = Number(core.getInput('keep-last'))
 
-    // For backward compatibility of deprecated input `tag-regex`
-    const legacyTagRegex = core.getInput('tag-regex')
-      ? [core.getInput('tag-regex')]
-      : null
-
-    const pruneUntagged =
-      asBoolean(core.getInput('prune-untagged')) ||
-      asBoolean(core.getInput('untagged'))
+    const pruneUntagged = asBoolean(core.getInput('prune-untagged'))
 
     if (removeMultiPlatform && pruneUntagged) {
       core.setFailed(
@@ -139,12 +129,8 @@ const run = async () => {
     const filterOptions = {
       keepTags: core.getMultilineInput('keep-tags'),
       keepTagsRegexes: core.getMultilineInput('keep-tags-regexes'),
-      keepYoungerThan:
-        Number(core.getInput('keep-younger-than')) ||
-        Number(core.getInput('older-than')),
-      pruneTagsRegexes: core.getInput('prune-tags-regexes')
-        ? core.getMultilineInput('prune-tags-regexes')
-        : legacyTagRegex,
+      keepYoungerThan: Number(core.getInput('keep-younger-than')),
+      pruneTagsRegexes: core.getMultilineInput('prune-tags-regexes'),
       pruneUntagged: pruneUntagged,
     }
 
@@ -154,7 +140,7 @@ const run = async () => {
 
     let listVersions
     let pruneVersion
-    let owner
+    let owner: string | undefined
     if (user) {
       listVersions = listUserContainerVersions(octokit)(user, container)
       pruneVersion = dryRun
@@ -185,7 +171,7 @@ const run = async () => {
       const dockerAPIGetCmd = dockerAPIGet(
         dockerAPIClient,
         token,
-        owner,
+        owner ?? '',
         container,
       )
       const getManifestByTag = getManifest(dockerAPIGetCmd)
@@ -203,7 +189,7 @@ const run = async () => {
       const dockerAPIGetCmd = dockerAPIGet(
         dockerAPIClient,
         token,
-        owner,
+        owner ?? '',
         container,
       )
       const getManifestByTag = getManifest(dockerAPIGetCmd)
@@ -214,9 +200,7 @@ const run = async () => {
       )()
 
       console.log(
-        'Identified ' +
-          digests.length +
-          ' untagged images that are a part of a tagged multi-arch image',
+        `Identified ${String(digests.length)} untagged images that are a part of a tagged multi-arch image`,
       )
 
       for (let i = pruningList.length - 1; i >= 0; i--) {
@@ -228,7 +212,9 @@ const run = async () => {
       }
     }
 
-    core.info(`Found a total of ${pruningList.length} versions to prune`)
+    core.info(
+      `Found a total of ${String(pruningList.length)} versions to prune`,
+    )
 
     const prunedList = await prune(pruneVersion)(pruningList)
 
@@ -236,7 +222,7 @@ const run = async () => {
 
     if (prunedList.length !== pruningList.length) {
       core.setFailed(
-        `Failed to prune some versions: ${prunedList.length} out of ${pruningList.length} versions were pruned`,
+        `Failed to prune some versions: ${String(prunedList.length)} out of ${String(pruningList.length)} versions were pruned`,
       )
     }
 
@@ -246,9 +232,16 @@ const run = async () => {
       prunedList.map((version) => version.id),
     )
     core.setOutput('dryRun', dryRun)
-  } catch (error) {
-    core.setFailed(error.message)
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      core.setFailed(error.message)
+    } else {
+      core.setFailed(String(error))
+    }
   }
 }
 
-run()
+run().catch((error: unknown) => {
+  console.error('Unhandled error:', error)
+  process.exit(1)
+})
