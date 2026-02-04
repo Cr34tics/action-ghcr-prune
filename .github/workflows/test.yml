@@ -346,7 +346,7 @@ jobs:
           echo "### ✅ All integration tests passed" >> $GITHUB_STEP_SUMMARY
 
   test-status:
-    name: Test Status
+    name: test-status
     if: always()
     needs: [format, lint, test, build, integration]
     runs-on: ubuntu-latest
