@@ -32,11 +32,10 @@ jobs:
 
       - name: Check formatting
         id: format-check
-        run: yarn fmt:check
-        continue-on-error: true
+        run: yarn fmt:check || echo "format_failed=true" >> $GITHUB_OUTPUT
 
       - name: Auto-format code
-        if: steps.format-check.outcome == 'failure' && github.event.pull_request.head.repo.full_name == github.repository
+        if: steps.format-check.outputs.format_failed == 'true' && github.event.pull_request.head.repo.full_name == github.repository
         run: |
           yarn fmt
           if [[ -n $(git status --porcelain) ]]; then
@@ -48,7 +47,7 @@ jobs:
           fi
 
       - name: Fail on fork PR with formatting issues
-        if: steps.format-check.outcome == 'failure' && github.event.pull_request.head.repo.full_name != github.repository
+        if: steps.format-check.outputs.format_failed == 'true' && github.event.pull_request.head.repo.full_name != github.repository
         run: |
           echo "::error::Code is not properly formatted. Please run 'yarn fmt' locally and commit the changes."
           exit 1
@@ -56,9 +55,9 @@ jobs:
       - name: Add summary
         if: always()
         run: |
-          if [ "${{ steps.format-check.outcome }}" == "success" ]; then
+          if [ "${{ steps.format-check.outputs.format_failed }}" != "true" ]; then
             echo "### ✅ Code is properly formatted" >> $GITHUB_STEP_SUMMARY
-          elif [ "${{ steps.format-check.outcome }}" == "failure" ] && [ "${{ github.event.pull_request.head.repo.full_name }}" == "${{ github.repository }}" ]; then
+          elif [ "${{ github.event.pull_request.head.repo.full_name }}" == "${{ github.repository }}" ]; then
             echo "### ✨ Code auto-formatted and committed" >> $GITHUB_STEP_SUMMARY
           fi
 
