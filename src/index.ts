@@ -223,7 +223,9 @@ const run = async (): Promise<void> => {
       }
     }
 
-    core.info(`Found a total of ${String(pruningList.length)} versions to prune`)
+    core.info(
+      `Found a total of ${String(pruningList.length)} versions to prune`,
+    )
 
     const prunedList = await prune(pruneVersion)(pruningList)
 

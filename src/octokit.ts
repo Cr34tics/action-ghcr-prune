@@ -6,7 +6,9 @@ type Octokit = ReturnType<typeof getOctokit>
 export const deleteAuthenticatedUserContainerVersion =
   (octokit: Octokit) =>
   (container: string) =>
-  (version: ContainerVersion): ReturnType<
+  (
+    version: ContainerVersion,
+  ): ReturnType<
     Octokit['rest']['packages']['deletePackageVersionForAuthenticatedUser']
   > =>
     octokit.rest.packages.deletePackageVersionForAuthenticatedUser({
@@ -18,9 +20,9 @@ export const deleteAuthenticatedUserContainerVersion =
 export const deleteOrgContainerVersion =
   (octokit: Octokit) =>
   (organization: string, container: string) =>
-  (version: ContainerVersion): ReturnType<
-    Octokit['rest']['packages']['deletePackageVersionForOrg']
-  > =>
+  (
+    version: ContainerVersion,
+  ): ReturnType<Octokit['rest']['packages']['deletePackageVersionForOrg']> =>
     octokit.rest.packages.deletePackageVersionForOrg({
       package_type: 'container',
       org: organization,
@@ -31,9 +33,9 @@ export const deleteOrgContainerVersion =
 export const deleteUserContainerVersion =
   (octokit: Octokit) =>
   (user: string, container: string) =>
-  (version: ContainerVersion): ReturnType<
-    Octokit['rest']['packages']['deletePackageVersionForUser']
-  > =>
+  (
+    version: ContainerVersion,
+  ): ReturnType<Octokit['rest']['packages']['deletePackageVersionForUser']> =>
     octokit.rest.packages.deletePackageVersionForUser({
       package_type: 'container',
       username: user,
@@ -44,7 +46,10 @@ export const deleteUserContainerVersion =
 export const listAuthenticatedUserContainerVersions =
   (octokit: Octokit) =>
   (container: string) =>
-  (pageSize: number, page = 1): ReturnType<
+  (
+    pageSize: number,
+    page = 1,
+  ): ReturnType<
     Octokit['rest']['packages']['getAllPackageVersionsForPackageOwnedByAuthenticatedUser']
   > =>
     octokit.rest.packages.getAllPackageVersionsForPackageOwnedByAuthenticatedUser(
@@ -60,7 +65,10 @@ export const listAuthenticatedUserContainerVersions =
 export const listOrgContainerVersions =
   (octokit: Octokit) =>
   (organization: string, container: string) =>
-  (pageSize: number, page = 1): ReturnType<
+  (
+    pageSize: number,
+    page = 1,
+  ): ReturnType<
     Octokit['rest']['packages']['getAllPackageVersionsForPackageOwnedByOrg']
   > =>
     octokit.rest.packages.getAllPackageVersionsForPackageOwnedByOrg({
@@ -75,7 +83,10 @@ export const listOrgContainerVersions =
 export const listUserContainerVersions =
   (octokit: Octokit) =>
   (user: string, container: string) =>
-  (pageSize: number, page = 1): ReturnType<
+  (
+    pageSize: number,
+    page = 1,
+  ): ReturnType<
     Octokit['rest']['packages']['getAllPackageVersionsForPackageOwnedByUser']
   > =>
     octokit.rest.packages.getAllPackageVersionsForPackageOwnedByUser({

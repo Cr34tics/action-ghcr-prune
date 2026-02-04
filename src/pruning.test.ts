@@ -63,7 +63,11 @@ describe('getPruningList', () => {
         data: Array((pageSize / 2) * (3 - page))
           .fill(0)
           .map((_, i) =>
-            version((page - 1) * 100 + i, `1.0.${String(i)}`, '2019-11-05T22:49:04Z'),
+            version(
+              (page - 1) * 100 + i,
+              `1.0.${String(i)}`,
+              '2019-11-05T22:49:04Z',
+            ),
           ),
       })
     const pruningFilter = ({ id }: ContainerVersion): boolean => id % 2 === 0
