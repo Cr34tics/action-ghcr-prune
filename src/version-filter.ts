@@ -84,7 +84,7 @@ export const versionFilter =
 export const digestFilter =
   (digests: string[]) =>
   (version: ContainerVersion): boolean => {
-    const found = digests.find((digest) => version.name == digest)
+    const found = digests.find((digest) => version.name === digest)
 
     if (found) {
       return true

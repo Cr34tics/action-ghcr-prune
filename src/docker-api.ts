@@ -25,7 +25,7 @@ const dockerManifestV1 =
 
     const response = await client.get(url, headers)
 
-    if (response.message.statusCode != 200) {
+    if (response.message.statusCode !== 200) {
       return {
         success: false,
         code: response.message.statusCode,
@@ -46,7 +46,7 @@ const dockerManifestV2 =
 
     const response = await client.get(url, headers)
 
-    if (response.message.statusCode != 200) {
+    if (response.message.statusCode !== 200) {
       return {
         success: false,
         code: response.message.statusCode,
