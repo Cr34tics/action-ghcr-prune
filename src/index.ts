@@ -107,14 +107,7 @@ const run = async (): Promise<void> => {
 
     const keepLast = Number(core.getInput('keep-last'))
 
-    // For backward compatibility of deprecated input `tag-regex`
-    const legacyTagRegex = core.getInput('tag-regex')
-      ? [core.getInput('tag-regex')]
-      : null
-
-    const pruneUntagged =
-      asBoolean(core.getInput('prune-untagged')) ||
-      asBoolean(core.getInput('untagged'))
+    const pruneUntagged = asBoolean(core.getInput('prune-untagged'))
 
     if (removeMultiPlatform && pruneUntagged) {
       core.setFailed(
@@ -136,12 +129,8 @@ const run = async (): Promise<void> => {
     const filterOptions = {
       keepTags: core.getMultilineInput('keep-tags'),
       keepTagsRegexes: core.getMultilineInput('keep-tags-regexes'),
-      keepYoungerThan:
-        Number(core.getInput('keep-younger-than')) ||
-        Number(core.getInput('older-than')),
-      pruneTagsRegexes: core.getInput('prune-tags-regexes')
-        ? core.getMultilineInput('prune-tags-regexes')
-        : legacyTagRegex,
+      keepYoungerThan: Number(core.getInput('keep-younger-than')),
+      pruneTagsRegexes: core.getMultilineInput('prune-tags-regexes'),
       pruneUntagged: pruneUntagged,
     }
 
