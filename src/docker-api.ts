@@ -1,6 +1,6 @@
-import { HttpClient, HttpClientResponse } from '@actions/http-client'
+import { HttpClient, type HttpClientResponse } from '@actions/http-client'
 import { Buffer } from 'buffer'
-import { DockerManifest } from './types'
+import type { DockerManifest } from './types'
 
 interface DockerAPIResponse {
   success: boolean
@@ -79,7 +79,7 @@ export const dockerAPIGet =
       return responseV2.resp
     } else {
       throw new Error(
-        `All Docker API requests at ${url} were unsuccessful. Docker manifest v1 status code ${responseV1.code} (${responseV1.message}). Docker manifest v2 status code ${responseV2.code} (${responseV2.message}).`,
+        `All Docker API requests at ${url} were unsuccessful. Docker manifest v1 status code ${String(responseV1.code)} (${String(responseV1.message)}). Docker manifest v2 status code ${String(responseV2.code)} (${String(responseV2.message)}).`,
       )
     }
   }

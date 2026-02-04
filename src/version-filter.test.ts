@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { versionFilter } from './version-filter'
-import { ContainerVersion } from './types'
+import type { ContainerVersion } from './types'
 
 const YEARS_AGO = '2019-11-05T22:49:04Z'
 const TODAY = new Date().toISOString()

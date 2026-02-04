@@ -16,9 +16,9 @@ import {
 } from './pruning'
 import { versionFilter } from './version-filter'
 import { getManifest, createDockerAPIClient, dockerAPIGet } from './docker-api'
-import { ContainerVersion } from './types'
+import type { ContainerVersion } from './types'
 
-const asBoolean = (v: string): boolean => 'true' == String(v)
+const asBoolean = (v: string): boolean => 'true' === v
 
 const versionSummary = (version: ContainerVersion): string =>
   JSON.stringify({
@@ -53,18 +53,18 @@ const writeSummary = async (
     )
   } else {
     summary = summary.addRaw(
-      `${allPruned ? ':white_check_mark:' : ':x:'} ${
-        prunedVersions.length
-      } out of ${
-        pruningVersions.length
-      } identified versions were pruned successfully.`,
+      `${allPruned ? ':white_check_mark:' : ':x:'} ${String(
+        prunedVersions.length,
+      )} out of ${String(
+        pruningVersions.length,
+      )} identified versions were pruned successfully.`,
     )
   }
 
   await summary
     .addHeading('Pruned versions', 3)
     .addRaw(
-      `The following ${prunedVersions.length} versions were successfully pruned:`,
+      `The following ${String(prunedVersions.length)} versions were successfully pruned:`,
     )
     .addTable([
       [
@@ -182,7 +182,7 @@ const run = async (): Promise<void> => {
       const dockerAPIGetCmd = dockerAPIGet(
         dockerAPIClient,
         token,
-        owner!,
+        owner ?? '',
         container,
       )
       const getManifestByTag = getManifest(dockerAPIGetCmd)
@@ -200,7 +200,7 @@ const run = async (): Promise<void> => {
       const dockerAPIGetCmd = dockerAPIGet(
         dockerAPIClient,
         token,
-        owner!,
+        owner ?? '',
         container,
       )
       const getManifestByTag = getManifest(dockerAPIGetCmd)
@@ -211,9 +211,7 @@ const run = async (): Promise<void> => {
       )()
 
       console.log(
-        'Identified ' +
-          digests.length +
-          ' untagged images that are a part of a tagged multi-arch image',
+        `Identified ${String(digests.length)} untagged images that are a part of a tagged multi-arch image`,
       )
 
       for (let i = pruningList.length - 1; i >= 0; i--) {
@@ -225,7 +223,7 @@ const run = async (): Promise<void> => {
       }
     }
 
-    core.info(`Found a total of ${pruningList.length} versions to prune`)
+    core.info(`Found a total of ${String(pruningList.length)} versions to prune`)
 
     const prunedList = await prune(pruneVersion)(pruningList)
 
@@ -233,7 +231,7 @@ const run = async (): Promise<void> => {
 
     if (prunedList.length !== pruningList.length) {
       core.setFailed(
-        `Failed to prune some versions: ${prunedList.length} out of ${pruningList.length} versions were pruned`,
+        `Failed to prune some versions: ${String(prunedList.length)} out of ${String(pruningList.length)} versions were pruned`,
       )
     }
 
@@ -243,7 +241,7 @@ const run = async (): Promise<void> => {
       prunedList.map((version) => version.id),
     )
     core.setOutput('dryRun', dryRun)
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof Error) {
       core.setFailed(error.message)
     } else {
@@ -252,7 +250,7 @@ const run = async (): Promise<void> => {
   }
 }
 
-run().catch((error) => {
+run().catch((error: unknown) => {
   console.error('Unhandled error:', error)
   process.exit(1)
 })

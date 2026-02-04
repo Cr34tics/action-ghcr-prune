@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { getPruningList, prune } from './pruning'
-import { ContainerVersion } from './types'
+import type { ContainerVersion } from './types'
 
 describe('getPruningList', () => {
   const version = (
@@ -19,14 +19,14 @@ describe('getPruningList', () => {
   })
 
   it('should return all versions to prune', async () => {
-    const listVersions = () =>
+    const listVersions = (): Promise<{ data: ContainerVersion[] }> =>
       Promise.resolve({
         data: [
           version(245301, '1.0.4', '2019-11-05T22:49:04Z'),
           version(209672, '1.0.3', '2019-10-29T15:42:11Z'),
         ],
       })
-    const pruningFilter = () => true
+    const pruningFilter = (): boolean => true
 
     const pruningList = await getPruningList(listVersions, pruningFilter)()
 
@@ -37,14 +37,15 @@ describe('getPruningList', () => {
   })
 
   it('should filter out versions to keep', async () => {
-    const listVersions = () =>
+    const listVersions = (): Promise<{ data: ContainerVersion[] }> =>
       Promise.resolve({
         data: [
           version(245301, '1.0.4', '2019-11-05T22:49:04Z'),
           version(209672, '1.0.3', '2019-10-29T15:42:11Z'),
         ],
       })
-    const pruningFilter = ({ name }: ContainerVersion) => name === '1.0.3'
+    const pruningFilter = ({ name }: ContainerVersion): boolean =>
+      name === '1.0.3'
 
     const pruningList = await getPruningList(listVersions, pruningFilter)()
 
@@ -54,15 +55,18 @@ describe('getPruningList', () => {
   })
 
   it('should crawl through pages of versions', async () => {
-    const listVersions = (pageSize: number, page = 1) =>
+    const listVersions = (
+      pageSize: number,
+      page = 1,
+    ): Promise<{ data: ContainerVersion[] }> =>
       Promise.resolve({
         data: Array((pageSize / 2) * (3 - page))
           .fill(0)
           .map((_, i) =>
-            version((page - 1) * 100 + i, `1.0.${i}`, '2019-11-05T22:49:04Z'),
+            version((page - 1) * 100 + i, `1.0.${String(i)}`, '2019-11-05T22:49:04Z'),
           ),
       })
-    const pruningFilter = ({ id }: ContainerVersion) => id % 2 === 0
+    const pruningFilter = ({ id }: ContainerVersion): boolean => id % 2 === 0
 
     const pruningList = await getPruningList(listVersions, pruningFilter)()
 
@@ -73,7 +77,7 @@ describe('getPruningList', () => {
   })
 
   it('should keep last `x` versions sorted by created date', async () => {
-    const listVersions = () =>
+    const listVersions = (): Promise<{ data: ContainerVersion[] }> =>
       Promise.resolve({
         data: [
           version(100001, '1.0.1', '2020-01-29T15:42:11Z'),
@@ -83,7 +87,7 @@ describe('getPruningList', () => {
           version(100000, '1.0.0', '2019-10-29T15:42:11Z'),
         ],
       })
-    const pruningFilter = () => true
+    const pruningFilter = (): boolean => true
 
     const pruningList = await getPruningList(listVersions, pruningFilter)(3)
 
@@ -95,18 +99,21 @@ describe('getPruningList', () => {
 })
 
 describe('prune', () => {
-  const version = (id: number): Partial<ContainerVersion> => ({
+  const version = (id: number): ContainerVersion => ({
     id,
-    name: `v-${id}`,
+    name: `v-${String(id)}`,
+    created_at: '2019-11-05T22:49:04Z',
+    metadata: {
+      container: {
+        tags: [],
+      },
+    },
   })
 
   it('should prune all versions in pruning list', async () => {
     const pruneVersion = vi.fn()
 
-    const pruningList = [
-      version(100001) as ContainerVersion,
-      version(100000) as ContainerVersion,
-    ]
+    const pruningList = [version(100001), version(100000)]
 
     const pruned = await prune(pruneVersion)(pruningList)
 
@@ -119,10 +126,7 @@ describe('prune', () => {
   it('should return 0 when all pruning failed', async () => {
     const pruneVersion = vi.fn().mockRejectedValue(Error('Pruning error'))
 
-    const pruningList = [
-      version(100001) as ContainerVersion,
-      version(100000) as ContainerVersion,
-    ]
+    const pruningList = [version(100001), version(100000)]
 
     const pruned = await prune(pruneVersion)(pruningList)
 
@@ -136,11 +140,7 @@ describe('prune', () => {
       .mockRejectedValueOnce(Error('Pruning error'))
       .mockResolvedValueOnce(undefined)
 
-    const pruningList = [
-      version(100000) as ContainerVersion,
-      version(100001) as ContainerVersion,
-      version(100002) as ContainerVersion,
-    ]
+    const pruningList = [version(100000), version(100001), version(100002)]
 
     const pruned = await prune(pruneVersion)(pruningList)
 

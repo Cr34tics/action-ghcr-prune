@@ -1,15 +1,21 @@
 import * as core from '@actions/core'
-import { ContainerVersion, FilterOptions } from './types'
+import type { ContainerVersion, FilterOptions } from './types'
 
 const MS_IN_DAY = 1000 * 60 * 60 * 24
 
 const daysBetween = (startDate: Date, endDate = new Date()): number =>
   Math.floor((endDate.getTime() - startDate.getTime()) / MS_IN_DAY)
 
-const anyRegexMatch = (regexes: string[]) => (tags: string[]) =>
-  regexes.some((regex) => tags.some((tag) => tag.match(regex)))
+const anyRegexMatch =
+  (regexes: string[]) =>
+  (tags: string[]): boolean =>
+    regexes.some((regex) => tags.some((tag) => tag.match(regex)))
 
-const debugLog = (message: string, version: ContainerVersion, age: number) => {
+const debugLog = (
+  message: string,
+  version: ContainerVersion,
+  age: number,
+): void => {
   core.debug(
     `Version: ${JSON.stringify(
       {
@@ -38,37 +44,35 @@ export const versionFilter =
     const createdAt = new Date(version.created_at)
     const age = daysBetween(createdAt)
 
-    const log = (message: string) => debugLog(message, version, age)
+    const log = (message: string): void => {
+      debugLog(message, version, age)
+    }
 
     if (keepYoungerThan && keepYoungerThan > age) {
       log(
-        `Keeping version ${version.name} because it is younger than ${keepYoungerThan} days`,
+        `Keeping version ${version.name} because it is younger than ${String(keepYoungerThan)} days`,
       )
       return false
     }
 
     const tags = version.metadata.container.tags
 
-    if (pruneUntagged && (!tags || !tags.length)) {
+    if (pruneUntagged && tags.length === 0) {
       log(`Pruning version ${version.name} because it is unTagged`)
       return true
     }
 
-    if (
-      keepTags &&
-      tags &&
-      keepTags.some((keepTag) => tags.includes(keepTag))
-    ) {
+    if (keepTags?.some((keepTag) => tags.includes(keepTag))) {
       log(`Keeping version ${version.name} because it has a keep tag`)
       return false
     }
 
-    if (keepTagsRegexes && tags && anyRegexMatch(keepTagsRegexes)(tags)) {
+    if (keepTagsRegexes && anyRegexMatch(keepTagsRegexes)(tags)) {
       log(`Keeping version ${version.name} because it matches a keep regex`)
       return false
     }
 
-    if (pruneTagsRegexes && tags && anyRegexMatch(pruneTagsRegexes)(tags)) {
+    if (pruneTagsRegexes && anyRegexMatch(pruneTagsRegexes)(tags)) {
       log(`Pruning version ${version.name} because it matches a prune regex`)
       return true
     }

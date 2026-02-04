@@ -1,5 +1,5 @@
 import * as core from '@actions/core'
-import { ContainerVersion, DockerManifest } from './types'
+import type { ContainerVersion, DockerManifest } from './types'
 import { digestFilter } from './version-filter'
 
 const PAGE_SIZE = 100
@@ -130,7 +130,7 @@ export const getPruningList =
       pruningList = [...pruningList, ...pagePruningList]
 
       core.info(
-        `Found ${pagePruningList.length} versions to prune out of ${lastPageSize} on page ${page}`,
+        `Found ${String(pagePruningList.length)} versions to prune out of ${String(lastPageSize)} on page ${String(page)}`,
       )
 
       page++
@@ -138,7 +138,7 @@ export const getPruningList =
 
     if (keepLast > 0) {
       core.info(
-        `Keeping the last ${keepLast} versions, sorted by creation date`,
+        `Keeping the last ${String(keepLast)} versions, sorted by creation date`,
       )
       return pruningList.sort(sortByVersionCreationDesc).slice(keepLast)
     }
@@ -150,13 +150,11 @@ export const prune =
   (pruneVersion: (version: ContainerVersion) => Promise<unknown>) =>
   async (pruningList: ContainerVersion[]): Promise<ContainerVersion[]> => {
     const pruned: ContainerVersion[] = []
-    core.startGroup(`Pruning ${pruningList.length} versions...`)
+    core.startGroup(`Pruning ${String(pruningList.length)} versions...`)
 
     for (const version of pruningList) {
       core.info(
-        `Pruning version #${version.id} named '${version.name}' tags: ${(
-          version?.metadata?.container?.tags || []
-        ).join(', ')}...`,
+        `Pruning version #${String(version.id)} named '${version.name}' tags: ${version.metadata.container.tags.join(', ')}...`,
       )
       try {
         await pruneVersion(version)
@@ -173,7 +171,7 @@ export const prune =
 
     core.endGroup()
 
-    core.notice(`Pruned ${pruned.length} versions`)
+    core.notice(`Pruned ${String(pruned.length)} versions`)
 
     return pruned
   }

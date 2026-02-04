@@ -18,13 +18,13 @@ export interface FilterOptions {
 }
 
 export interface DockerManifest {
-  manifests?: Array<{
+  manifests?: {
     digest: string
     platform?: {
       architecture: string
       os: string
     }
-  }>
+  }[]
   mediaType?: string
 }
 
