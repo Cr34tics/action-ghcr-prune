@@ -78,7 +78,6 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: format
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -169,7 +168,6 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [build, test]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
