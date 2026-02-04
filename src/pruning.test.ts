@@ -2,6 +2,16 @@ import { describe, it, expect, vi } from 'vitest'
 import { getPruningList, prune } from './pruning'
 import type { ContainerVersion } from './types'
 
+// Mock @actions/core to prevent GitHub Actions annotations in test output
+vi.mock('@actions/core', () => ({
+  info: vi.fn(),
+  debug: vi.fn(),
+  error: vi.fn(),
+  notice: vi.fn(),
+  startGroup: vi.fn(),
+  endGroup: vi.fn(),
+}))
+
 describe('getPruningList', () => {
   const version = (
     id: number,

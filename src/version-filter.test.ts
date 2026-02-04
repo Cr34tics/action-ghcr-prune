@@ -1,6 +1,11 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { versionFilter } from './version-filter'
 import type { ContainerVersion } from './types'
+
+// Mock @actions/core to prevent GitHub Actions annotations in test output
+vi.mock('@actions/core', () => ({
+  debug: vi.fn(),
+}))
 
 const YEARS_AGO = '2019-11-05T22:49:04Z'
 const TODAY = new Date().toISOString()
