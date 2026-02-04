@@ -1,13 +1,20 @@
-const deleteAuthenticatedUserContainerVersion =
-  (octokit) => (container) => (version) =>
+import { getOctokit } from '@actions/github'
+import { ContainerVersion } from './types'
+
+type Octokit = ReturnType<typeof getOctokit>
+
+export const deleteAuthenticatedUserContainerVersion =
+  (octokit: Octokit) => (container: string) => (version: ContainerVersion) =>
     octokit.rest.packages.deletePackageVersionForAuthenticatedUser({
       package_type: 'container',
       package_name: container,
       package_version_id: version.id,
     })
 
-const deleteOrgContainerVersion =
-  (octokit) => (organization, container) => (version) =>
+export const deleteOrgContainerVersion =
+  (octokit: Octokit) =>
+  (organization: string, container: string) =>
+  (version: ContainerVersion) =>
     octokit.rest.packages.deletePackageVersionForOrg({
       package_type: 'container',
       org: organization,
@@ -15,8 +22,10 @@ const deleteOrgContainerVersion =
       package_version_id: version.id,
     })
 
-const deleteUserContainerVersion =
-  (octokit) => (user, container) => (version) =>
+export const deleteUserContainerVersion =
+  (octokit: Octokit) =>
+  (user: string, container: string) =>
+  (version: ContainerVersion) =>
     octokit.rest.packages.deletePackageVersionForUser({
       package_type: 'container',
       username: user,
@@ -24,10 +33,10 @@ const deleteUserContainerVersion =
       package_version_id: version.id,
     })
 
-const listAuthenticatedUserContainerVersions =
-  (octokit) =>
-  (container) =>
-  (pageSize, page = 1) =>
+export const listAuthenticatedUserContainerVersions =
+  (octokit: Octokit) =>
+  (container: string) =>
+  (pageSize: number, page = 1) =>
     octokit.rest.packages.getAllPackageVersionsForPackageOwnedByAuthenticatedUser(
       {
         package_type: 'container',
@@ -38,10 +47,10 @@ const listAuthenticatedUserContainerVersions =
       },
     )
 
-const listOrgContainerVersions =
-  (octokit) =>
-  (organization, container) =>
-  (pageSize, page = 1) =>
+export const listOrgContainerVersions =
+  (octokit: Octokit) =>
+  (organization: string, container: string) =>
+  (pageSize: number, page = 1) =>
     octokit.rest.packages.getAllPackageVersionsForPackageOwnedByOrg({
       package_type: 'container',
       org: organization,
@@ -51,10 +60,10 @@ const listOrgContainerVersions =
       state: 'active',
     })
 
-const listUserContainerVersions =
-  (octokit) =>
-  (user, container) =>
-  (pageSize, page = 1) =>
+export const listUserContainerVersions =
+  (octokit: Octokit) =>
+  (user: string, container: string) =>
+  (pageSize: number, page = 1) =>
     octokit.rest.packages.getAllPackageVersionsForPackageOwnedByUser({
       package_type: 'container',
       username: user,
@@ -63,12 +72,3 @@ const listUserContainerVersions =
       per_page: pageSize,
       state: 'active',
     })
-
-module.exports = {
-  deleteAuthenticatedUserContainerVersion,
-  deleteOrgContainerVersion,
-  deleteUserContainerVersion,
-  listAuthenticatedUserContainerVersions,
-  listOrgContainerVersions,
-  listUserContainerVersions,
-}

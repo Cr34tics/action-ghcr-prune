@@ -1,29 +1,26 @@
-const core = require('@actions/core')
-const github = require('@actions/github')
-const {
+import * as core from '@actions/core'
+import * as github from '@actions/github'
+import {
   deleteAuthenticatedUserContainerVersion,
   deleteOrgContainerVersion,
   deleteUserContainerVersion,
   listAuthenticatedUserContainerVersions,
   listOrgContainerVersions,
   listUserContainerVersions,
-} = require('./src/octokit')
-const {
+} from './octokit'
+import {
   getAllMultiPlatList,
   getMultiPlatPruningList,
   getPruningList,
   prune,
-} = require('./src/pruning')
-const { versionFilter } = require('./src/version-filter')
-const {
-  getManifest,
-  createDockerAPIClient,
-  dockerAPIGet,
-} = require('./src/docker-api.js')
+} from './pruning'
+import { versionFilter } from './version-filter'
+import { getManifest, createDockerAPIClient, dockerAPIGet } from './docker-api'
+import { ContainerVersion } from './types'
 
-const asBoolean = (v) => 'true' == String(v)
+const asBoolean = (v: string): boolean => 'true' == String(v)
 
-const versionSummary = (version) =>
+const versionSummary = (version: ContainerVersion): string =>
   JSON.stringify({
     id: version.id,
     name: version.name,
@@ -31,18 +28,18 @@ const versionSummary = (version) =>
     tags: version.metadata.container.tags,
   })
 
-const dryRunDelete = (version) =>
+const dryRunDelete = (version: ContainerVersion): Promise<void> =>
   new Promise((resolve) => {
     core.info(`Dry-run pruning of: ${versionSummary(version)}`)
     resolve()
   })
 
 const writeSummary = async (
-  container,
-  dryRun,
-  pruningVersions,
-  prunedVersions,
-) => {
+  container: string,
+  dryRun: boolean,
+  pruningVersions: ContainerVersion[],
+  prunedVersions: ContainerVersion[],
+): Promise<void> => {
   const allPruned = pruningVersions.length === prunedVersions.length
 
   let summary = core.summary.addHeading(
@@ -86,7 +83,7 @@ const writeSummary = async (
     .write()
 }
 
-const run = async () => {
+const run = async (): Promise<void> => {
   try {
     const token = core.getInput('token')
     const organization = core.getInput('organization')
@@ -154,7 +151,7 @@ const run = async () => {
 
     let listVersions
     let pruneVersion
-    let owner
+    let owner: string | undefined
     if (user) {
       listVersions = listUserContainerVersions(octokit)(user, container)
       pruneVersion = dryRun
@@ -185,7 +182,7 @@ const run = async () => {
       const dockerAPIGetCmd = dockerAPIGet(
         dockerAPIClient,
         token,
-        owner,
+        owner!,
         container,
       )
       const getManifestByTag = getManifest(dockerAPIGetCmd)
@@ -203,7 +200,7 @@ const run = async () => {
       const dockerAPIGetCmd = dockerAPIGet(
         dockerAPIClient,
         token,
-        owner,
+        owner!,
         container,
       )
       const getManifestByTag = getManifest(dockerAPIGetCmd)
@@ -247,8 +244,15 @@ const run = async () => {
     )
     core.setOutput('dryRun', dryRun)
   } catch (error) {
-    core.setFailed(error.message)
+    if (error instanceof Error) {
+      core.setFailed(error.message)
+    } else {
+      core.setFailed(String(error))
+    }
   }
 }
 
-run()
+run().catch((error) => {
+  console.error('Unhandled error:', error)
+  process.exit(1)
+})
