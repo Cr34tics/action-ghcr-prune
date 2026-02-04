@@ -13,6 +13,7 @@ This is especially true when the [`prune-tags-regexes` input](#prune-tags-regexe
 ## Quick start
 
 Pruning all untagged versions older than 7 days, except the 2 most recent:
+
 ```yml
 steps:
   - name: Prune
@@ -32,6 +33,7 @@ For more pruning strategies, [see filters](#mag-filters).
 ## Permissions
 
 This action uses the Github Rest API [deletePackageVersionForOrg()](https://octokit.github.io/rest.js/v18#packages-delete-package-version-for-org) resource which states:
+
 > To use this endpoint, you must have admin permissions in the organization and authenticate using an access token with the `packages:read` and `packages:delete` scopes. In addition:
 > [...]
 > If `package_type` is container, you must also have admin permissions to the container you want to delete.
@@ -140,8 +142,8 @@ Disabled by default (ie. no versions pruned based on tags).
 
 :warning: **Please note:** Extra care should be taken when using `prune-tags-regexes`, please make sure you've read the [Word of caution](#%EF%B8%8F-word-of-caution)
 
-
 For example, pruning all versions with tags starting with either `pr-` or `test-`:
+
 ```yml
 steps:
   - name: Prune

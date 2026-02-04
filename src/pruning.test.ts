@@ -1,3 +1,4 @@
+import { describe, it, expect, vi } from 'vitest'
 import { getPruningList, prune } from './pruning'
 import { ContainerVersion } from './types'
 
@@ -100,7 +101,7 @@ describe('prune', () => {
   })
 
   it('should prune all versions in pruning list', async () => {
-    const pruneVersion = jest.fn()
+    const pruneVersion = vi.fn()
 
     const pruningList = [
       version(100001) as ContainerVersion,
@@ -116,7 +117,7 @@ describe('prune', () => {
   })
 
   it('should return 0 when all pruning failed', async () => {
-    const pruneVersion = jest.fn().mockRejectedValue(Error('Pruning error'))
+    const pruneVersion = vi.fn().mockRejectedValue(Error('Pruning error'))
 
     const pruningList = [
       version(100001) as ContainerVersion,
@@ -129,7 +130,7 @@ describe('prune', () => {
   })
 
   it('should not interrupt pruning when encountering error', async () => {
-    const pruneVersion = jest
+    const pruneVersion = vi
       .fn()
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(Error('Pruning error'))

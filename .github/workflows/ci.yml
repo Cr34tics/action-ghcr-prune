@@ -259,7 +259,6 @@ jobs:
           keep-tags-regexes: 2$
           remove-multi-platform: true
 
-
       - name: Expect 3 tagged versions to be pruned
         uses: actions/github-script@v7
         with:

@@ -23,3 +23,11 @@ updates:
       all:
         patterns:
           - '*'
+
+  - package-ecosystem: docker
+    directory: /test
+    schedule:
+      interval: weekly
+    labels:
+      - 'priority:low'
+      - 'type:dependency-upgrade'

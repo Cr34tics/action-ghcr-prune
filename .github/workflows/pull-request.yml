@@ -7,16 +7,62 @@ on:
       - master
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  lint:
-    name: Lint
+  format:
+    name: Format Check & Auto-fix
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Check formatting
+        id: format-check
+        run: yarn fmt:check
+        continue-on-error: true
+
+      - name: Auto-format code
+        if: steps.format-check.outcome == 'failure' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          yarn fmt
+          if [[ -n $(git status --porcelain) ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add .
+            git commit -m "chore: auto-format code with prettier"
+            git push
+          fi
+
+      - name: Fail on fork PR with formatting issues
+        if: steps.format-check.outcome == 'failure' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "::error::Code is not properly formatted. Please run 'yarn fmt' locally and commit the changes."
+          exit 1
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: format
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
