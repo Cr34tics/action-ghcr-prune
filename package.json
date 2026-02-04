@@ -24,7 +24,8 @@
     "ghcr",
     "container-registry",
     "prune",
-    "cleanup"
+    "cleanup",
+    "docker"
   ],
   "author": "Cr34tics",
   "license": "MIT",
