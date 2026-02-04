@@ -15,7 +15,8 @@ const multiPlatImage = (manifest: DockerManifest): boolean => {
   }
   return (
     manifest.mediaType === 'application/vnd.oci.image.index.v1+json' ||
-    manifest.mediaType === 'application/vnd.docker.distribution.manifest.v2+json'
+    manifest.mediaType ===
+      'application/vnd.docker.distribution.manifest.v2+json'
   )
 }
 
