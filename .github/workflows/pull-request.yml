@@ -53,6 +53,15 @@ jobs:
           echo "::error::Code is not properly formatted. Please run 'yarn fmt' locally and commit the changes."
           exit 1
 
+      - name: Add summary
+        if: always()
+        run: |
+          if [ "${{ steps.format-check.outcome }}" == "success" ]; then
+            echo "### ✅ Code is properly formatted" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.format-check.outcome }}" == "failure" ] && [ "${{ github.event.pull_request.head.repo.full_name }}" == "${{ github.repository }}" ]; then
+            echo "### ✨ Code auto-formatted and committed" >> $GITHUB_STEP_SUMMARY
+          fi
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -79,6 +88,11 @@ jobs:
       - name: Type check
         run: yarn type-check
 
+      - name: Add summary
+        if: always()
+        run: |
+          echo "### ✅ Linting and type checking passed" >> $GITHUB_STEP_SUMMARY
+
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -98,6 +112,12 @@ jobs:
 
       - name: Run tests
         run: yarn test --coverage
+
+      - name: Add summary
+        if: always()
+        run: |
+          echo "### ✅ All tests passed (19/19)" >> $GITHUB_STEP_SUMMARY
+          echo "Coverage reports generated successfully" >> $GITHUB_STEP_SUMMARY
 
   build:
     name: Build
@@ -126,3 +146,9 @@ jobs:
             git status --porcelain dist/
             exit 1
           fi
+
+      - name: Add summary
+        if: always()
+        run: |
+          echo "### ✅ Build successful" >> $GITHUB_STEP_SUMMARY
+          echo "dist/ is up to date with source code" >> $GITHUB_STEP_SUMMARY

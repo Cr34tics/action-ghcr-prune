@@ -42,7 +42,7 @@ jobs:
           user: vlaurin
           container: test-action-ghcr-prune
           dry-run: true
-          untagged: true
+          untagged: true # Deprecated input - testing backward compatibility
           keep-last: 1
 
       - name: (Backward compatibility) Expect 2 untagged versions to be pruned
@@ -71,7 +71,7 @@ jobs:
           user: vlaurin
           container: test-action-ghcr-prune
           dry-run: true
-          tag-regex: ^pr-
+          tag-regex: ^pr- # Deprecated input - testing backward compatibility
           keep-tags: |
             pr-demo
 
@@ -101,7 +101,7 @@ jobs:
           user: vlaurin
           container: test-action-ghcr-prune
           dry-run: true
-          tag-regex: ^pr-
+          tag-regex: ^pr- # Deprecated input - testing backward compatibility
           keep-tags-regexes: |
             ^pr-[a-z]+
             ^pr-\d\d2
