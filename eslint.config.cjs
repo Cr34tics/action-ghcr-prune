@@ -28,7 +28,7 @@ module.exports = [
         Object.entries(config.plugins).map(([name, plugin]) => [
           name,
           fixupPluginRules(plugin),
-        ])
+        ]),
       ),
     }
   }),
