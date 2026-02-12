@@ -33,7 +33,7 @@ export const getAllMultiPlatList =
   async (): Promise<string[]> => {
     const digests: string[] = []
     let allVersions: ContainerVersion[] = []
-    let lastPageSize = 0
+    let lastPageSize
     let page = 1
 
     core.info('Crawling through all images for multi-platform images...')
@@ -117,7 +117,7 @@ export const getPruningList =
   async (keepLast = 0): Promise<ContainerVersion[]> => {
     let pruningList: ContainerVersion[] = []
     let page = 1
-    let lastPageSize = 0
+    let lastPageSize
 
     core.info('Crawling through all versions to build pruning list...')
 
