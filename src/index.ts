@@ -109,6 +109,8 @@ const run = async (): Promise<void> => {
 
     const pruneUntagged = asBoolean(core.getInput('prune-untagged'))
 
+    const ghcrMaxRetries = Number(core.getInput('ghcr-max-retries'))
+
     if (removeMultiPlatform && pruneUntagged) {
       core.setFailed(
         'Inputs `remove-multi-platform` and `prune-untagged` are mutually exclusive and must not both be provided in the same run.',
@@ -173,6 +175,7 @@ const run = async (): Promise<void> => {
         token,
         owner ?? '',
         container,
+        ghcrMaxRetries,
       )
       const getManifestByTag = getManifest(dockerAPIGetCmd)
 
@@ -191,6 +194,7 @@ const run = async (): Promise<void> => {
         token,
         owner ?? '',
         container,
+        ghcrMaxRetries,
       )
       const getManifestByTag = getManifest(dockerAPIGetCmd)
 
