@@ -93,7 +93,7 @@ export const dockerAPIGet =
       return responseV2.resp
     }
 
-    const is404 = responseV1.code === 404 || responseV2.code === 404
+    const is404 = responseV1.code === 404 && responseV2.code === 404
 
     if (is404) {
       throw new Docker404Error(url)

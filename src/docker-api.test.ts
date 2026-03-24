@@ -101,7 +101,7 @@ describe('dockerAPIGet', () => {
     await expect(get('manifests/latest')).rejects.not.toThrow(Docker404Error)
   })
 
-  it('should throw Docker404Error when only V1 returns 404', async () => {
+  it('should throw regular error when only V1 returns 404 but V2 returns 500', async () => {
     const fail404 = mockHttpResponse(404)
     const fail500 = mockHttpResponse(500)
     mockClient = {
@@ -113,10 +113,13 @@ describe('dockerAPIGet', () => {
 
     const get = dockerAPIGet(mockClient, 'token', 'owner', 'container')
 
-    await expect(get('manifests/latest')).rejects.toThrow(Docker404Error)
+    await expect(get('manifests/latest')).rejects.toThrow(
+      'All Docker API requests',
+    )
+    await expect(get('manifests/latest')).rejects.not.toThrow(Docker404Error)
   })
 
-  it('should throw Docker404Error when only V2 returns 404', async () => {
+  it('should throw regular error when only V2 returns 404 but V1 returns 500', async () => {
     const fail500 = mockHttpResponse(500)
     const fail404 = mockHttpResponse(404)
     mockClient = {
@@ -128,6 +131,9 @@ describe('dockerAPIGet', () => {
 
     const get = dockerAPIGet(mockClient, 'token', 'owner', 'container')
 
-    await expect(get('manifests/latest')).rejects.toThrow(Docker404Error)
+    await expect(get('manifests/latest')).rejects.toThrow(
+      'All Docker API requests',
+    )
+    await expect(get('manifests/latest')).rejects.not.toThrow(Docker404Error)
   })
 })
