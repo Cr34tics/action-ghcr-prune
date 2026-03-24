@@ -93,9 +93,9 @@ export const processManifestsWithRetryQueue =
     }
 
     if (retryQueue.length > 0) {
-      core.warning(
-        `${String(retryQueue.length)} manifest(s) still returned 404 after ${String(safeMaxRetries)} retry round(s)`,
-      )
+      const message = `${String(retryQueue.length)} manifest(s) still returned 404 after ${String(safeMaxRetries)} retry round(s)`
+      core.error(message)
+      throw new Error(message)
     }
 
     return allDigests
