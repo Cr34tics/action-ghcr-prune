@@ -186,13 +186,13 @@ const run = async (): Promise<void> => {
         token,
         owner ?? '',
         container,
-        ghcrMaxRetries,
       )
       const getManifestByTag = getManifest(dockerAPIGetCmd)
 
       const multiPlatPruningList = await getMultiPlatPruningList(
         listVersions,
         getManifestByTag,
+        ghcrMaxRetries,
       )(pruningList)
 
       if (multiPlatPruningList) {
@@ -205,13 +205,13 @@ const run = async (): Promise<void> => {
         token,
         owner ?? '',
         container,
-        ghcrMaxRetries,
       )
       const getManifestByTag = getManifest(dockerAPIGetCmd)
 
       const digests = await getAllMultiPlatList(
         listVersions,
         getManifestByTag,
+        ghcrMaxRetries,
       )()
 
       console.log(
