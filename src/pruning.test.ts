@@ -281,17 +281,18 @@ describe('processManifestsWithRetryQueue', () => {
     expect(getManifest).toHaveBeenCalledTimes(3)
   })
 
-  it('should warn when manifests still fail after all retry rounds', async () => {
+  it('should throw when manifests still fail after all retry rounds', async () => {
     const getManifest = vi.fn().mockRejectedValue(new Docker404Error('url1'))
 
     const images = [taggedVersion(1, 'v1')]
 
-    const digests = await processManifestsWithRetryQueue(getManifest, 2)(images)
+    await expect(
+      processManifestsWithRetryQueue(getManifest, 2)(images),
+    ).rejects.toThrow('1 manifest(s) still returned 404 after 2 retry round(s)')
 
     // 1 first pass + 2 retry rounds = 3 calls
     expect(getManifest).toHaveBeenCalledTimes(3)
-    expect(digests).toEqual([])
-    expect(core.warning).toHaveBeenCalledWith(
+    expect(core.error).toHaveBeenCalledWith(
       '1 manifest(s) still returned 404 after 2 retry round(s)',
     )
   })
@@ -312,12 +313,13 @@ describe('processManifestsWithRetryQueue', () => {
 
     const images = [taggedVersion(1, 'v1')]
 
-    const digests = await processManifestsWithRetryQueue(getManifest, 0)(images)
+    await expect(
+      processManifestsWithRetryQueue(getManifest, 0)(images),
+    ).rejects.toThrow('1 manifest(s) still returned 404 after 0 retry round(s)')
 
     // Only 1 call (first pass), no retries
     expect(getManifest).toHaveBeenCalledTimes(1)
-    expect(digests).toEqual([])
-    expect(core.warning).toHaveBeenCalledWith(
+    expect(core.error).toHaveBeenCalledWith(
       '1 manifest(s) still returned 404 after 0 retry round(s)',
     )
   })
@@ -347,7 +349,9 @@ describe('processManifestsWithRetryQueue', () => {
 
     const images = [taggedVersion(1, 'v1')]
 
-    await processManifestsWithRetryQueue(getManifest, NaN)(images)
+    await expect(
+      processManifestsWithRetryQueue(getManifest, NaN)(images),
+    ).rejects.toThrow('1 manifest(s) still returned 404 after 5 retry round(s)')
 
     // 1 first pass + 5 default retry rounds = 6 calls
     expect(getManifest).toHaveBeenCalledTimes(6)
