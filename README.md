@@ -201,6 +201,12 @@ steps:
 
 **Optional** Boolean controlling whether untagged versions should be pruned (`true`) or not (`false`). Defaults to `false`. This action will not remove any untagged versions that are child digests of multi-platform images.
 
+### ghcr-max-retries
+
+**Optional** Maximum number of retries for transient 404 errors from the GHCR Docker API. Defaults to `5`.
+
+When a manifest fetch returns a 404, the action will retry up to this many times using exponential backoff (1s, 2s, 4s, 8s, 16s, … capped at 30s per attempt). With the default of 5 retries, the worst-case additional wait is approximately 31 seconds per manifest. Set to `0` to disable retries entirely.
+
 ## Outputs
 
 ### count

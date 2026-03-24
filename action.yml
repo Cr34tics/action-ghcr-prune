@@ -61,7 +61,7 @@ inputs:
   ghcr-max-retries:
     description: 'Maximum number of retries for transient 404 errors from the GHCR Docker API. Uses exponential backoff between retries.'
     required: false
-    default: 10
+    default: 5
 output:
   count:
     description: 'Count of container versions that were pruned'

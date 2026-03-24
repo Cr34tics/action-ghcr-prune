@@ -70,7 +70,7 @@ export const dockerAPIGet =
     token: string,
     owner: string,
     container: string,
-    maxRetries = 10,
+    maxRetries = 5,
   ) =>
   async (resource: string): Promise<HttpClientResponse> => {
     const base64Token = Buffer.from(token).toString('base64')
@@ -81,7 +81,7 @@ export const dockerAPIGet =
       Number.isInteger(maxRetries) &&
       maxRetries >= 0
         ? maxRetries
-        : 10
+        : 5
 
     for (let attempt = 0; attempt <= safeMaxRetries; attempt++) {
       const responseV1 = await dockerManifestV1(

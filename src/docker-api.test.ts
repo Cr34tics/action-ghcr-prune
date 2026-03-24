@@ -129,7 +129,7 @@ describe('dockerAPIGet', () => {
     expect(mockClient.get).toHaveBeenCalledTimes(2)
   })
 
-  it('should use default maxRetries of 10 when not specified', async () => {
+  it('should use default maxRetries of 5 when not specified', async () => {
     const failResponse = mockHttpResponse(404)
     mockClient = {
       get: vi.fn().mockResolvedValue(failResponse),
@@ -141,8 +141,8 @@ describe('dockerAPIGet', () => {
     await vi.runAllTimersAsync()
 
     await assertion
-    // 11 attempts (0-10) * 2 calls each = 22
-    expect(mockClient.get).toHaveBeenCalledTimes(22)
+    // 6 attempts (0-5) * 2 calls each = 12
+    expect(mockClient.get).toHaveBeenCalledTimes(12)
   })
 
   it('should retry on 404 from only one manifest version', async () => {
