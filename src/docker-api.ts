@@ -76,7 +76,14 @@ export const dockerAPIGet =
     const base64Token = Buffer.from(token).toString('base64')
     const url = `https://ghcr.io/v2/${owner}/${container}/${resource}`
 
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const safeMaxRetries =
+      Number.isFinite(maxRetries) &&
+      Number.isInteger(maxRetries) &&
+      maxRetries >= 0
+        ? maxRetries
+        : 10
+
+    for (let attempt = 0; attempt <= safeMaxRetries; attempt++) {
       const responseV1 = await dockerManifestV1(
         client,
         base64Token,
@@ -96,10 +103,10 @@ export const dockerAPIGet =
 
       const is404 = responseV1.code === 404 || responseV2.code === 404
 
-      if (is404 && attempt < maxRetries) {
+      if (is404 && attempt < safeMaxRetries) {
         const backoffMs = getBackoffMs(attempt)
         core.info(
-          `Got 404 for ${url}, retrying in ${String(backoffMs)}ms (retry ${String(attempt + 1)} of ${String(maxRetries)})...`,
+          `Got 404 for ${url}, retrying in ${String(backoffMs)}ms (retry ${String(attempt + 1)} of ${String(safeMaxRetries)})...`,
         )
         await delay(backoffMs)
         continue
@@ -111,7 +118,7 @@ export const dockerAPIGet =
     }
 
     /* istanbul ignore next -- unreachable after loop */
-    throw new Error(`Unexpected error after ${String(maxRetries + 1)} attempts`)
+    throw new Error(`Unexpected error after ${String(safeMaxRetries + 1)} attempts`)
   }
 
 export const getManifest =
