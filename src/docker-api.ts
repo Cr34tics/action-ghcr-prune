@@ -99,7 +99,7 @@ export const dockerAPIGet =
       if (is404 && attempt < maxRetries) {
         const backoffMs = getBackoffMs(attempt)
         core.info(
-          `Got 404 for ${url}, retrying in ${String(backoffMs)}ms (attempt ${String(attempt + 1)}/${String(maxRetries)})...`,
+          `Got 404 for ${url}, retrying in ${String(backoffMs)}ms (retry ${String(attempt + 1)} of ${String(maxRetries)})...`,
         )
         await delay(backoffMs)
         continue
@@ -111,7 +111,7 @@ export const dockerAPIGet =
     }
 
     /* istanbul ignore next -- unreachable after loop */
-    throw new Error(`Unexpected error after ${String(maxRetries)} retries`)
+    throw new Error(`Unexpected error after ${String(maxRetries + 1)} attempts`)
   }
 
 export const getManifest =
