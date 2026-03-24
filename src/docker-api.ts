@@ -9,11 +9,24 @@ interface DockerAPIResponse {
   resp?: HttpClientResponse
 }
 
+export class Docker404Error extends Error {
+  constructor(url: string) {
+    super(`Got 404 for ${url}`)
+    this.name = 'Docker404Error'
+  }
+}
+
 export const createDockerAPIClient = (): HttpClient => {
   const client = new HttpClient('github-action')
 
   return client
 }
+
+export const delay = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms))
+
+export const getBackoffMs = (attempt: number): number =>
+  Math.min(1000 * Math.pow(2, attempt), 30000)
 
 const dockerManifestV1 =
   (client: HttpClient, token: string, url: string) =>
@@ -62,6 +75,7 @@ export const dockerAPIGet =
   async (resource: string): Promise<HttpClientResponse> => {
     const base64Token = Buffer.from(token).toString('base64')
     const url = `https://ghcr.io/v2/${owner}/${container}/${resource}`
+
     const responseV1 = await dockerManifestV1(
       client,
       base64Token,
@@ -77,11 +91,17 @@ export const dockerAPIGet =
       return responseV1.resp
     } else if (responseV2.success && responseV2.resp) {
       return responseV2.resp
-    } else {
-      throw new Error(
-        `All Docker API requests at ${url} were unsuccessful. Docker manifest v1 status code ${String(responseV1.code)} (${String(responseV1.message)}). Docker manifest v2 status code ${String(responseV2.code)} (${String(responseV2.message)}).`,
-      )
     }
+
+    const is404 = responseV1.code === 404 && responseV2.code === 404
+
+    if (is404) {
+      throw new Docker404Error(url)
+    }
+
+    throw new Error(
+      `All Docker API requests at ${url} were unsuccessful. Docker manifest v1 status code ${String(responseV1.code)} (${String(responseV1.message)}). Docker manifest v2 status code ${String(responseV2.code)} (${String(responseV2.message)}).`,
+    )
   }
 
 export const getManifest =

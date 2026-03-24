@@ -109,6 +109,19 @@ const run = async (): Promise<void> => {
 
     const pruneUntagged = asBoolean(core.getInput('prune-untagged'))
 
+    const ghcrMaxRetries = Number(core.getInput('ghcr-max-retries'))
+
+    if (
+      !Number.isFinite(ghcrMaxRetries) ||
+      !Number.isInteger(ghcrMaxRetries) ||
+      ghcrMaxRetries < 0
+    ) {
+      core.setFailed(
+        'Input `ghcr-max-retries` must be a non-negative integer (0 or greater).',
+      )
+      return
+    }
+
     if (removeMultiPlatform && pruneUntagged) {
       core.setFailed(
         'Inputs `remove-multi-platform` and `prune-untagged` are mutually exclusive and must not both be provided in the same run.',
@@ -179,6 +192,7 @@ const run = async (): Promise<void> => {
       const multiPlatPruningList = await getMultiPlatPruningList(
         listVersions,
         getManifestByTag,
+        ghcrMaxRetries,
       )(pruningList)
 
       if (multiPlatPruningList) {
@@ -197,6 +211,7 @@ const run = async (): Promise<void> => {
       const digests = await getAllMultiPlatList(
         listVersions,
         getManifestByTag,
+        ghcrMaxRetries,
       )()
 
       console.log(
