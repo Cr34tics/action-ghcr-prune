@@ -118,7 +118,9 @@ export const dockerAPIGet =
     }
 
     /* istanbul ignore next -- unreachable after loop */
-    throw new Error(`Unexpected error after ${String(safeMaxRetries + 1)} attempts`)
+    throw new Error(
+      `Unexpected error after ${String(safeMaxRetries + 1)} attempts`,
+    )
   }
 
 export const getManifest =
