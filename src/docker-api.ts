@@ -1,4 +1,3 @@
-import * as core from '@actions/core'
 import { HttpClient, type HttpClientResponse } from '@actions/http-client'
 import { Buffer } from 'buffer'
 import type { DockerManifest } from './types'
@@ -8,6 +7,13 @@ interface DockerAPIResponse {
   code?: number
   message?: string
   resp?: HttpClientResponse
+}
+
+export class Docker404Error extends Error {
+  constructor(url: string) {
+    super(`Got 404 for ${url}`)
+    this.name = 'Docker404Error'
+  }
 }
 
 export const createDockerAPIClient = (): HttpClient => {
@@ -65,61 +71,36 @@ const dockerManifestV2 =
   }
 
 export const dockerAPIGet =
-  (
-    client: HttpClient,
-    token: string,
-    owner: string,
-    container: string,
-    maxRetries = 5,
-  ) =>
+  (client: HttpClient, token: string, owner: string, container: string) =>
   async (resource: string): Promise<HttpClientResponse> => {
     const base64Token = Buffer.from(token).toString('base64')
     const url = `https://ghcr.io/v2/${owner}/${container}/${resource}`
 
-    const safeMaxRetries =
-      Number.isFinite(maxRetries) &&
-      Number.isInteger(maxRetries) &&
-      maxRetries >= 0
-        ? maxRetries
-        : 5
+    const responseV1 = await dockerManifestV1(
+      client,
+      base64Token,
+      url,
+    )(resource)
+    const responseV2 = await dockerManifestV2(
+      client,
+      base64Token,
+      url,
+    )(resource)
 
-    for (let attempt = 0; attempt <= safeMaxRetries; attempt++) {
-      const responseV1 = await dockerManifestV1(
-        client,
-        base64Token,
-        url,
-      )(resource)
-      const responseV2 = await dockerManifestV2(
-        client,
-        base64Token,
-        url,
-      )(resource)
-
-      if (responseV1.success && responseV1.resp) {
-        return responseV1.resp
-      } else if (responseV2.success && responseV2.resp) {
-        return responseV2.resp
-      }
-
-      const is404 = responseV1.code === 404 || responseV2.code === 404
-
-      if (is404 && attempt < safeMaxRetries) {
-        const backoffMs = getBackoffMs(attempt)
-        core.info(
-          `Got 404 for ${url}, retrying in ${String(backoffMs)}ms (retry ${String(attempt + 1)} of ${String(safeMaxRetries)})...`,
-        )
-        await delay(backoffMs)
-        continue
-      }
-
-      throw new Error(
-        `All Docker API requests at ${url} were unsuccessful. Docker manifest v1 status code ${String(responseV1.code)} (${String(responseV1.message)}). Docker manifest v2 status code ${String(responseV2.code)} (${String(responseV2.message)}).`,
-      )
+    if (responseV1.success && responseV1.resp) {
+      return responseV1.resp
+    } else if (responseV2.success && responseV2.resp) {
+      return responseV2.resp
     }
 
-    /* istanbul ignore next -- unreachable after loop */
+    const is404 = responseV1.code === 404 || responseV2.code === 404
+
+    if (is404) {
+      throw new Docker404Error(url)
+    }
+
     throw new Error(
-      `Unexpected error after ${String(safeMaxRetries + 1)} attempts`,
+      `All Docker API requests at ${url} were unsuccessful. Docker manifest v1 status code ${String(responseV1.code)} (${String(responseV1.message)}). Docker manifest v2 status code ${String(responseV2.code)} (${String(responseV2.message)}).`,
     )
   }
 

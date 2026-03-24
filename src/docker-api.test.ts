@@ -1,11 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { dockerAPIGet, getBackoffMs } from './docker-api'
+import { describe, it, expect, vi } from 'vitest'
+import { dockerAPIGet, getBackoffMs, Docker404Error } from './docker-api'
 import type { HttpClient, HttpClientResponse } from '@actions/http-client'
 import type { IncomingMessage } from 'http'
-
-vi.mock('@actions/core', () => ({
-  info: vi.fn(),
-}))
 
 const mockHttpResponse = (statusCode: number): HttpClientResponse => {
   const message = {
@@ -34,17 +30,21 @@ describe('getBackoffMs', () => {
   })
 })
 
+describe('Docker404Error', () => {
+  it('should be an instance of Error', () => {
+    const error = new Docker404Error(
+      'https://ghcr.io/v2/owner/container/manifests/latest',
+    )
+    expect(error).toBeInstanceOf(Error)
+    expect(error.name).toBe('Docker404Error')
+    expect(error.message).toBe(
+      'Got 404 for https://ghcr.io/v2/owner/container/manifests/latest',
+    )
+  })
+})
+
 describe('dockerAPIGet', () => {
   let mockClient: HttpClient
-
-  beforeEach(() => {
-    vi.useFakeTimers()
-    vi.clearAllMocks()
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-  })
 
   it('should return response when V1 succeeds', async () => {
     const successResponse = mockHttpResponse(200)
@@ -74,112 +74,60 @@ describe('dockerAPIGet', () => {
     expect(result).toBe(successResponse)
   })
 
-  it('should retry on 404 and succeed on subsequent attempt', async () => {
-    const failResponse = mockHttpResponse(404)
-    const successResponse = mockHttpResponse(200)
-    mockClient = {
-      get: vi
-        .fn()
-        // First attempt: V1 returns 404, V2 returns 404
-        .mockResolvedValueOnce(failResponse)
-        .mockResolvedValueOnce(failResponse)
-        // Second attempt: V1 succeeds, V2 also called
-        .mockResolvedValueOnce(successResponse)
-        .mockResolvedValueOnce(successResponse),
-    } as unknown as HttpClient
-
-    const get = dockerAPIGet(mockClient, 'token', 'owner', 'container', 3)
-    const promise = get('manifests/latest')
-    await vi.runAllTimersAsync()
-    const result = await promise
-
-    expect(result).toBe(successResponse)
-    // 2 calls per attempt, 2 attempts = 4
-    expect(mockClient.get).toHaveBeenCalledTimes(4)
-  })
-
-  it('should throw after exhausting retries on persistent 404', async () => {
-    const failResponse = mockHttpResponse(404)
-    mockClient = {
-      get: vi.fn().mockResolvedValue(failResponse),
-    } as unknown as HttpClient
-
-    const get = dockerAPIGet(mockClient, 'token', 'owner', 'container', 2)
-    const promise = get('manifests/latest')
-    const assertion = expect(promise).rejects.toThrow('All Docker API requests')
-    await vi.runAllTimersAsync()
-
-    await assertion
-    // 3 attempts (0, 1, 2) * 2 calls each (V1 + V2) = 6
-    expect(mockClient.get).toHaveBeenCalledTimes(6)
-  })
-
-  it('should not retry on non-404 errors', async () => {
-    const failResponse = mockHttpResponse(500)
-    mockClient = {
-      get: vi.fn().mockResolvedValue(failResponse),
-    } as unknown as HttpClient
-
-    const get = dockerAPIGet(mockClient, 'token', 'owner', 'container', 3)
-
-    await expect(get('manifests/latest')).rejects.toThrow(
-      'All Docker API requests',
-    )
-    // Only 1 attempt * 2 calls (V1 + V2) = 2
-    expect(mockClient.get).toHaveBeenCalledTimes(2)
-  })
-
-  it('should use default maxRetries of 5 when not specified', async () => {
+  it('should throw Docker404Error on 404 from both V1 and V2', async () => {
     const failResponse = mockHttpResponse(404)
     mockClient = {
       get: vi.fn().mockResolvedValue(failResponse),
     } as unknown as HttpClient
 
     const get = dockerAPIGet(mockClient, 'token', 'owner', 'container')
-    const promise = get('manifests/latest')
-    const assertion = expect(promise).rejects.toThrow('All Docker API requests')
-    await vi.runAllTimersAsync()
 
-    await assertion
-    // 6 attempts (0-5) * 2 calls each = 12
-    expect(mockClient.get).toHaveBeenCalledTimes(12)
+    await expect(get('manifests/latest')).rejects.toThrow(Docker404Error)
+    // Single attempt: 2 calls (V1 + V2)
+    expect(mockClient.get).toHaveBeenCalledTimes(2)
   })
 
-  it('should retry on 404 from only one manifest version', async () => {
-    const fail404 = mockHttpResponse(404)
-    const fail500 = mockHttpResponse(500)
-    const successResponse = mockHttpResponse(200)
-    mockClient = {
-      get: vi
-        .fn()
-        // First attempt: V1 returns 404, V2 returns 500
-        .mockResolvedValueOnce(fail404)
-        .mockResolvedValueOnce(fail500)
-        // Second attempt: V1 succeeds, V2 also called
-        .mockResolvedValueOnce(successResponse)
-        .mockResolvedValueOnce(successResponse),
-    } as unknown as HttpClient
-
-    const get = dockerAPIGet(mockClient, 'token', 'owner', 'container', 3)
-    const promise = get('manifests/latest')
-    await vi.runAllTimersAsync()
-    const result = await promise
-
-    expect(result).toBe(successResponse)
-  })
-
-  it('should work with maxRetries of 0 (no retries)', async () => {
-    const failResponse = mockHttpResponse(404)
+  it('should throw regular error on non-404 errors', async () => {
+    const failResponse = mockHttpResponse(500)
     mockClient = {
       get: vi.fn().mockResolvedValue(failResponse),
     } as unknown as HttpClient
 
-    const get = dockerAPIGet(mockClient, 'token', 'owner', 'container', 0)
+    const get = dockerAPIGet(mockClient, 'token', 'owner', 'container')
 
     await expect(get('manifests/latest')).rejects.toThrow(
       'All Docker API requests',
     )
-    // 1 attempt * 2 calls = 2
-    expect(mockClient.get).toHaveBeenCalledTimes(2)
+    await expect(get('manifests/latest')).rejects.not.toThrow(Docker404Error)
+  })
+
+  it('should throw Docker404Error when only V1 returns 404', async () => {
+    const fail404 = mockHttpResponse(404)
+    const fail500 = mockHttpResponse(500)
+    mockClient = {
+      get: vi
+        .fn()
+        .mockResolvedValueOnce(fail404)
+        .mockResolvedValueOnce(fail500),
+    } as unknown as HttpClient
+
+    const get = dockerAPIGet(mockClient, 'token', 'owner', 'container')
+
+    await expect(get('manifests/latest')).rejects.toThrow(Docker404Error)
+  })
+
+  it('should throw Docker404Error when only V2 returns 404', async () => {
+    const fail500 = mockHttpResponse(500)
+    const fail404 = mockHttpResponse(404)
+    mockClient = {
+      get: vi
+        .fn()
+        .mockResolvedValueOnce(fail500)
+        .mockResolvedValueOnce(fail404),
+    } as unknown as HttpClient
+
+    const get = dockerAPIGet(mockClient, 'token', 'owner', 'container')
+
+    await expect(get('manifests/latest')).rejects.toThrow(Docker404Error)
   })
 })

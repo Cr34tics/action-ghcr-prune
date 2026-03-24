@@ -59,7 +59,7 @@ inputs:
     required: false
     default: false
   ghcr-max-retries:
-    description: 'Maximum number of retries for transient 404 errors from the GHCR Docker API. Uses exponential backoff between retries.'
+    description: 'Maximum number of retry rounds for transient 404 errors from the GHCR Docker API. Failed manifests are queued and retried after all others are processed, with exponential backoff between rounds.'
     required: false
     default: 5
 output:

@@ -1,6 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
-import { getPruningList, prune } from './pruning'
-import type { ContainerVersion } from './types'
+import * as core from '@actions/core'
+import {
+  getPruningList,
+  prune,
+  processManifestsWithRetryQueue,
+} from './pruning'
+import { Docker404Error } from './docker-api'
+import type { ContainerVersion, DockerManifest } from './types'
 
 // Mock @actions/core to prevent GitHub Actions annotations in test output
 vi.mock('@actions/core', () => ({
@@ -8,9 +14,19 @@ vi.mock('@actions/core', () => ({
   debug: vi.fn(),
   error: vi.fn(),
   notice: vi.fn(),
+  warning: vi.fn(),
   startGroup: vi.fn(),
   endGroup: vi.fn(),
 }))
+
+// Mock delay to avoid actual waiting in tests
+vi.mock('./docker-api', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    delay: vi.fn().mockResolvedValue(undefined),
+  }
+})
 
 describe('getPruningList', () => {
   const version = (
@@ -163,5 +179,177 @@ describe('prune', () => {
     expect(pruneVersion).nthCalledWith(1, pruningList[0])
     expect(pruneVersion).nthCalledWith(2, pruningList[1])
     expect(pruneVersion).nthCalledWith(3, pruningList[2])
+  })
+})
+
+describe('processManifestsWithRetryQueue', () => {
+  const taggedVersion = (id: number, tag: string): ContainerVersion => ({
+    id,
+    name: `sha256:${String(id)}`,
+    created_at: '2019-11-05T22:49:04Z',
+    metadata: {
+      container: {
+        tags: [tag],
+      },
+    },
+  })
+
+  const untaggedVersion = (id: number): ContainerVersion => ({
+    id,
+    name: `sha256:${String(id)}`,
+    created_at: '2019-11-05T22:49:04Z',
+    metadata: {
+      container: {
+        tags: [],
+      },
+    },
+  })
+
+  const multiPlatManifest = (digests: string[]): DockerManifest => ({
+    mediaType: 'application/vnd.oci.image.index.v1+json',
+    manifests: digests.map((d) => ({ digest: d })),
+  })
+
+  const singlePlatManifest: DockerManifest = {
+    mediaType: 'application/vnd.docker.distribution.manifest.v2+json',
+  }
+
+  it('should process all manifests successfully with no retries', async () => {
+    const getManifest = vi
+      .fn()
+      .mockResolvedValueOnce(multiPlatManifest(['sha256:aaa', 'sha256:bbb']))
+      .mockResolvedValueOnce(singlePlatManifest)
+
+    const images = [taggedVersion(1, 'v1'), taggedVersion(2, 'v2')]
+
+    const digests = await processManifestsWithRetryQueue(getManifest, 3)(images)
+
+    expect(digests).toEqual(['sha256:aaa', 'sha256:bbb'])
+    expect(getManifest).toHaveBeenCalledTimes(2)
+  })
+
+  it('should skip untagged versions', async () => {
+    const getManifest = vi
+      .fn()
+      .mockResolvedValue(multiPlatManifest(['sha256:aaa']))
+
+    const images = [
+      untaggedVersion(1),
+      taggedVersion(2, 'v2'),
+      untaggedVersion(3),
+    ]
+
+    const digests = await processManifestsWithRetryQueue(getManifest, 3)(images)
+
+    expect(getManifest).toHaveBeenCalledTimes(1)
+    expect(getManifest).toHaveBeenCalledWith('v2')
+    expect(digests).toEqual(['sha256:aaa'])
+  })
+
+  it('should queue 404 failures and retry after processing others', async () => {
+    const getManifest = vi
+      .fn()
+      // First pass: image1 404s, image2 succeeds
+      .mockRejectedValueOnce(new Docker404Error('url1'))
+      .mockResolvedValueOnce(multiPlatManifest(['sha256:bbb']))
+      // Retry round 1: image1 succeeds
+      .mockResolvedValueOnce(multiPlatManifest(['sha256:aaa']))
+
+    const images = [taggedVersion(1, 'v1'), taggedVersion(2, 'v2')]
+
+    const digests = await processManifestsWithRetryQueue(getManifest, 3)(images)
+
+    expect(digests).toEqual(['sha256:bbb', 'sha256:aaa'])
+    expect(getManifest).toHaveBeenCalledTimes(3)
+  })
+
+  it('should retry multiple rounds with backoff', async () => {
+    const getManifest = vi
+      .fn()
+      // First pass: 404
+      .mockRejectedValueOnce(new Docker404Error('url1'))
+      // Retry round 1: still 404
+      .mockRejectedValueOnce(new Docker404Error('url1'))
+      // Retry round 2: succeeds
+      .mockResolvedValueOnce(multiPlatManifest(['sha256:aaa']))
+
+    const images = [taggedVersion(1, 'v1')]
+
+    const digests = await processManifestsWithRetryQueue(getManifest, 5)(images)
+
+    expect(digests).toEqual(['sha256:aaa'])
+    expect(getManifest).toHaveBeenCalledTimes(3)
+  })
+
+  it('should warn when manifests still fail after all retry rounds', async () => {
+    const getManifest = vi.fn().mockRejectedValue(new Docker404Error('url1'))
+
+    const images = [taggedVersion(1, 'v1')]
+
+    const digests = await processManifestsWithRetryQueue(getManifest, 2)(images)
+
+    // 1 first pass + 2 retry rounds = 3 calls
+    expect(getManifest).toHaveBeenCalledTimes(3)
+    expect(digests).toEqual([])
+    expect(core.warning).toHaveBeenCalledWith(
+      '1 manifest(s) still returned 404 after 2 retry round(s)',
+    )
+  })
+
+  it('should not retry on non-404 errors', async () => {
+    const getManifest = vi.fn().mockRejectedValueOnce(new Error('Server error'))
+
+    const images = [taggedVersion(1, 'v1')]
+
+    await expect(
+      processManifestsWithRetryQueue(getManifest, 3)(images),
+    ).rejects.toThrow('Server error')
+    expect(getManifest).toHaveBeenCalledTimes(1)
+  })
+
+  it('should work with maxRetries of 0 (no retries)', async () => {
+    const getManifest = vi.fn().mockRejectedValue(new Docker404Error('url1'))
+
+    const images = [taggedVersion(1, 'v1')]
+
+    const digests = await processManifestsWithRetryQueue(getManifest, 0)(images)
+
+    // Only 1 call (first pass), no retries
+    expect(getManifest).toHaveBeenCalledTimes(1)
+    expect(digests).toEqual([])
+    expect(core.warning).toHaveBeenCalledWith(
+      '1 manifest(s) still returned 404 after 0 retry round(s)',
+    )
+  })
+
+  it('should handle mixed success and 404 in retry queue', async () => {
+    const getManifest = vi
+      .fn()
+      // First pass: both 404
+      .mockRejectedValueOnce(new Docker404Error('url1'))
+      .mockRejectedValueOnce(new Docker404Error('url2'))
+      // Retry round 1: image1 succeeds, image2 still 404
+      .mockResolvedValueOnce(multiPlatManifest(['sha256:aaa']))
+      .mockRejectedValueOnce(new Docker404Error('url2'))
+      // Retry round 2: image2 succeeds
+      .mockResolvedValueOnce(multiPlatManifest(['sha256:bbb']))
+
+    const images = [taggedVersion(1, 'v1'), taggedVersion(2, 'v2')]
+
+    const digests = await processManifestsWithRetryQueue(getManifest, 3)(images)
+
+    expect(digests).toEqual(['sha256:aaa', 'sha256:bbb'])
+    expect(getManifest).toHaveBeenCalledTimes(5)
+  })
+
+  it('should fall back to default maxRetries of 5 for invalid values', async () => {
+    const getManifest = vi.fn().mockRejectedValue(new Docker404Error('url1'))
+
+    const images = [taggedVersion(1, 'v1')]
+
+    await processManifestsWithRetryQueue(getManifest, NaN)(images)
+
+    // 1 first pass + 5 default retry rounds = 6 calls
+    expect(getManifest).toHaveBeenCalledTimes(6)
   })
 })
