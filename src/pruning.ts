@@ -32,6 +32,11 @@ const collectDigests = (manifest: DockerManifest): string[] => {
   return digests
 }
 
+export interface ManifestProcessingResult {
+  digests: string[]
+  deletedGhostIds: number[]
+}
+
 export const processManifestsWithRetryQueue =
   (
     getManifest: (tag: string) => Promise<DockerManifest>,
@@ -40,7 +45,7 @@ export const processManifestsWithRetryQueue =
     deleteGhostVersion?: (version: ContainerVersion) => Promise<unknown>,
     listVersions?: ListVersionsFn,
   ) =>
-  async (images: ContainerVersion[]): Promise<string[]> => {
+  async (images: ContainerVersion[]): Promise<ManifestProcessingResult> => {
     const safeMaxRetries =
       Number.isFinite(maxRetries) &&
       Number.isInteger(maxRetries) &&
@@ -160,6 +165,8 @@ export const processManifestsWithRetryQueue =
             )
           }
         }
+
+        return { digests: allDigests, deletedGhostIds: deletedIds }
       } else {
         const message = `${String(retryQueue.length)} manifest(s) still returned 404 after ${String(safeMaxRetries)} retry round(s)`
         core.error(message)
@@ -167,7 +174,7 @@ export const processManifestsWithRetryQueue =
       }
     }
 
-    return allDigests
+    return { digests: allDigests, deletedGhostIds: [] }
   }
 
 const validateGhostsDeleted = async (
@@ -185,10 +192,11 @@ const validateGhostsDeleted = async (
     for (const version of versions as ContainerVersion[]) {
       if (ghostIdSet.has(version.id)) {
         remainingGhosts.push(version.id)
+        ghostIdSet.delete(version.id)
       }
     }
     page++
-  } while (lastPageSize >= PAGE_SIZE)
+  } while (lastPageSize >= PAGE_SIZE && ghostIdSet.size > 0)
 
   return remainingGhosts
 }
@@ -206,7 +214,7 @@ export const getAllMultiPlatList =
     ghost404Behavior: Ghcr404Behavior = 'fail',
     deleteGhostVersion?: (version: ContainerVersion) => Promise<unknown>,
   ) =>
-  async (): Promise<string[]> => {
+  async (): Promise<ManifestProcessingResult> => {
     let allVersions: ContainerVersion[] = []
     let lastPageSize
     let page = 1
@@ -229,6 +237,11 @@ export const getAllMultiPlatList =
     )(allVersions)
   }
 
+export interface MultiPlatPruningResult {
+  versions?: ContainerVersion[]
+  deletedGhostIds: number[]
+}
+
 export const getMultiPlatPruningList =
   (
     listVersions: ListVersionsFn,
@@ -237,12 +250,10 @@ export const getMultiPlatPruningList =
     ghost404Behavior: Ghcr404Behavior = 'fail',
     deleteGhostVersion?: (version: ContainerVersion) => Promise<unknown>,
   ) =>
-  async (
-    pruningList: ContainerVersion[],
-  ): Promise<ContainerVersion[] | undefined> => {
+  async (pruningList: ContainerVersion[]): Promise<MultiPlatPruningResult> => {
     core.info('Crawling through pruning list for multi-platform images...')
 
-    const digests = await processManifestsWithRetryQueue(
+    const result = await processManifestsWithRetryQueue(
       getManifest,
       maxRetries,
       ghost404Behavior,
@@ -250,17 +261,20 @@ export const getMultiPlatPruningList =
       listVersions,
     )(pruningList)
 
-    if (digests.length) {
-      const filterByDigests = digestFilter(digests)
+    if (result.digests.length) {
+      const filterByDigests = digestFilter(result.digests)
       /* keepLast can be 0 here as we already know we are pruning these versions */
       const newImagesToPrune = await getPruningList(
         listVersions,
         filterByDigests,
       )(0)
 
-      return newImagesToPrune
+      return {
+        versions: newImagesToPrune,
+        deletedGhostIds: result.deletedGhostIds,
+      }
     } else {
-      return undefined
+      return { versions: undefined, deletedGhostIds: result.deletedGhostIds }
     }
   }
 

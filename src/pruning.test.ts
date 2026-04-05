@@ -222,9 +222,10 @@ describe('processManifestsWithRetryQueue', () => {
 
     const images = [taggedVersion(1, 'v1'), taggedVersion(2, 'v2')]
 
-    const digests = await processManifestsWithRetryQueue(getManifest, 3)(images)
+    const result = await processManifestsWithRetryQueue(getManifest, 3)(images)
 
-    expect(digests).toEqual(['sha256:aaa', 'sha256:bbb'])
+    expect(result.digests).toEqual(['sha256:aaa', 'sha256:bbb'])
+    expect(result.deletedGhostIds).toEqual([])
     expect(getManifest).toHaveBeenCalledTimes(2)
   })
 
@@ -239,11 +240,12 @@ describe('processManifestsWithRetryQueue', () => {
       untaggedVersion(3),
     ]
 
-    const digests = await processManifestsWithRetryQueue(getManifest, 3)(images)
+    const result = await processManifestsWithRetryQueue(getManifest, 3)(images)
 
     expect(getManifest).toHaveBeenCalledTimes(1)
     expect(getManifest).toHaveBeenCalledWith('v2')
-    expect(digests).toEqual(['sha256:aaa'])
+    expect(result.digests).toEqual(['sha256:aaa'])
+    expect(result.deletedGhostIds).toEqual([])
   })
 
   it('should queue 404 failures and retry after processing others', async () => {
@@ -257,9 +259,10 @@ describe('processManifestsWithRetryQueue', () => {
 
     const images = [taggedVersion(1, 'v1'), taggedVersion(2, 'v2')]
 
-    const digests = await processManifestsWithRetryQueue(getManifest, 3)(images)
+    const result = await processManifestsWithRetryQueue(getManifest, 3)(images)
 
-    expect(digests).toEqual(['sha256:bbb', 'sha256:aaa'])
+    expect(result.digests).toEqual(['sha256:bbb', 'sha256:aaa'])
+    expect(result.deletedGhostIds).toEqual([])
     expect(getManifest).toHaveBeenCalledTimes(3)
   })
 
@@ -275,9 +278,10 @@ describe('processManifestsWithRetryQueue', () => {
 
     const images = [taggedVersion(1, 'v1')]
 
-    const digests = await processManifestsWithRetryQueue(getManifest, 5)(images)
+    const result = await processManifestsWithRetryQueue(getManifest, 5)(images)
 
-    expect(digests).toEqual(['sha256:aaa'])
+    expect(result.digests).toEqual(['sha256:aaa'])
+    expect(result.deletedGhostIds).toEqual([])
     expect(getManifest).toHaveBeenCalledTimes(3)
   })
 
@@ -338,9 +342,10 @@ describe('processManifestsWithRetryQueue', () => {
 
     const images = [taggedVersion(1, 'v1'), taggedVersion(2, 'v2')]
 
-    const digests = await processManifestsWithRetryQueue(getManifest, 3)(images)
+    const result = await processManifestsWithRetryQueue(getManifest, 3)(images)
 
-    expect(digests).toEqual(['sha256:aaa', 'sha256:bbb'])
+    expect(result.digests).toEqual(['sha256:aaa', 'sha256:bbb'])
+    expect(result.deletedGhostIds).toEqual([])
     expect(getManifest).toHaveBeenCalledTimes(5)
   })
 
@@ -363,13 +368,14 @@ describe('processManifestsWithRetryQueue', () => {
 
       const images = [taggedVersion(1, 'v1')]
 
-      const digests = await processManifestsWithRetryQueue(
+      const result = await processManifestsWithRetryQueue(
         getManifest,
         2,
         'warn',
       )(images)
 
-      expect(digests).toEqual([])
+      expect(result.digests).toEqual([])
+      expect(result.deletedGhostIds).toEqual([])
       // 1 first pass + 2 retries = 3 calls
       expect(getManifest).toHaveBeenCalledTimes(3)
       expect(core.warning).toHaveBeenCalledWith(
@@ -390,13 +396,14 @@ describe('processManifestsWithRetryQueue', () => {
 
       const images = [taggedVersion(1, 'v1'), taggedVersion(2, 'v2')]
 
-      const digests = await processManifestsWithRetryQueue(
+      const result = await processManifestsWithRetryQueue(
         getManifest,
         1,
         'warn',
       )(images)
 
-      expect(digests).toEqual(['sha256:aaa'])
+      expect(result.digests).toEqual(['sha256:aaa'])
+      expect(result.deletedGhostIds).toEqual([])
       expect(core.warning).toHaveBeenCalledWith(
         expect.stringContaining('1 manifest(s) still returned 404'),
       )
@@ -404,7 +411,7 @@ describe('processManifestsWithRetryQueue', () => {
   })
 
   describe('ghost404Behavior: delete', () => {
-    it('should delete ghost versions via provided delete function', async () => {
+    it('should delete ghost versions and return their IDs', async () => {
       const getManifest = vi.fn().mockRejectedValue(new Docker404Error('url1'))
 
       const deleteGhostVersion = vi.fn().mockResolvedValue(undefined)
@@ -414,7 +421,7 @@ describe('processManifestsWithRetryQueue', () => {
 
       const images = [taggedVersion(1, 'v1')]
 
-      const digests = await processManifestsWithRetryQueue(
+      const result = await processManifestsWithRetryQueue(
         getManifest,
         1,
         'delete',
@@ -422,7 +429,8 @@ describe('processManifestsWithRetryQueue', () => {
         listVersions,
       )(images)
 
-      expect(digests).toEqual([])
+      expect(result.digests).toEqual([])
+      expect(result.deletedGhostIds).toEqual([1])
       expect(deleteGhostVersion).toHaveBeenCalledTimes(1)
       expect(deleteGhostVersion).toHaveBeenCalledWith(images[0])
       expect(core.info).toHaveBeenCalledWith(
@@ -433,7 +441,7 @@ describe('processManifestsWithRetryQueue', () => {
       )
     })
 
-    it('should warn if ghost deletion fails', async () => {
+    it('should warn if ghost deletion fails and return empty deletedGhostIds', async () => {
       const getManifest = vi.fn().mockRejectedValue(new Docker404Error('url1'))
 
       const deleteGhostVersion = vi
@@ -444,7 +452,7 @@ describe('processManifestsWithRetryQueue', () => {
 
       const images = [taggedVersion(1, 'v1')]
 
-      const digests = await processManifestsWithRetryQueue(
+      const result = await processManifestsWithRetryQueue(
         getManifest,
         1,
         'delete',
@@ -452,7 +460,8 @@ describe('processManifestsWithRetryQueue', () => {
         listVersions,
       )(images)
 
-      expect(digests).toEqual([])
+      expect(result.digests).toEqual([])
+      expect(result.deletedGhostIds).toEqual([])
       expect(core.warning).toHaveBeenCalledWith(
         expect.stringContaining('Failed to delete ghost version id=1'),
       )
@@ -470,7 +479,7 @@ describe('processManifestsWithRetryQueue', () => {
 
       const images = [taggedVersion(1, 'v1')]
 
-      const digests = await processManifestsWithRetryQueue(
+      const result = await processManifestsWithRetryQueue(
         getManifest,
         1,
         'delete',
@@ -478,7 +487,8 @@ describe('processManifestsWithRetryQueue', () => {
         listVersions,
       )(images)
 
-      expect(digests).toEqual([])
+      expect(result.digests).toEqual([])
+      expect(result.deletedGhostIds).toEqual([1])
       expect(core.warning).toHaveBeenCalledWith(
         expect.stringContaining(
           '1 ghost version(s) still listed after deletion',
@@ -514,7 +524,7 @@ describe('processManifestsWithRetryQueue', () => {
 
       const images = [taggedVersion(1, 'v1'), taggedVersion(2, 'v2')]
 
-      const digests = await processManifestsWithRetryQueue(
+      const result = await processManifestsWithRetryQueue(
         getManifest,
         1,
         'delete',
@@ -522,7 +532,8 @@ describe('processManifestsWithRetryQueue', () => {
         listVersions,
       )(images)
 
-      expect(digests).toEqual([])
+      expect(result.digests).toEqual([])
+      expect(result.deletedGhostIds).toEqual([1, 2])
       expect(deleteGhostVersion).toHaveBeenCalledTimes(2)
       expect(core.info).toHaveBeenCalledWith(
         expect.stringContaining(

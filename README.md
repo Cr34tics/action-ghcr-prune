@@ -214,7 +214,7 @@ When a manifest fetch returns a 404, it is added to a retry queue instead of bei
 | Value    | Description                                                                                                                                      |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `fail`   | Error and stop. This is the default and preserves backward-compatible behavior.                                                                  |
-| `warn`   | Log a warning for each ghost version and skip them. The action continues without failing.                                                        |
+| `warn`   | Log a single aggregated warning for the remaining ghost versions and skip them. The action continues without failing.                            |
 | `delete` | Attempt to delete each ghost version via the GitHub Packages API. After deletion, re-list versions to validate that ghosts are no longer listed. |
 
 Ghost versions are container versions that appear in the GitHub Packages API listing but whose manifests cannot be fetched from the Docker Registry (both v1 and v2 endpoints return 404 even after retries).

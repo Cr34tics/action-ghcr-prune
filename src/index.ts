@@ -199,7 +199,7 @@ const run = async (): Promise<void> => {
       )
       const getManifestByTag = getManifest(dockerAPIGetCmd)
 
-      const multiPlatPruningList = await getMultiPlatPruningList(
+      const multiPlatResult = await getMultiPlatPruningList(
         listVersions,
         getManifestByTag,
         ghcrMaxRetries,
@@ -207,8 +207,18 @@ const run = async (): Promise<void> => {
         pruneVersion,
       )(pruningList)
 
-      if (multiPlatPruningList) {
-        pruningList.push(...multiPlatPruningList)
+      // Remove versions already deleted as ghosts to avoid double-delete in prune()
+      if (multiPlatResult.deletedGhostIds.length > 0) {
+        const deletedSet = new Set(multiPlatResult.deletedGhostIds)
+        for (let i = pruningList.length - 1; i >= 0; i--) {
+          if (deletedSet.has(pruningList[i].id)) {
+            pruningList.splice(i, 1)
+          }
+        }
+      }
+
+      if (multiPlatResult.versions) {
+        pruningList.push(...multiPlatResult.versions)
       }
     } else if (pruneUntagged) {
       const dockerAPIClient = createDockerAPIClient()
@@ -220,7 +230,7 @@ const run = async (): Promise<void> => {
       )
       const getManifestByTag = getManifest(dockerAPIGetCmd)
 
-      const digests = await getAllMultiPlatList(
+      const multiPlatResult = await getAllMultiPlatList(
         listVersions,
         getManifestByTag,
         ghcrMaxRetries,
@@ -228,14 +238,24 @@ const run = async (): Promise<void> => {
         pruneVersion,
       )()
 
+      // Remove versions already deleted as ghosts to avoid double-delete in prune()
+      if (multiPlatResult.deletedGhostIds.length > 0) {
+        const deletedSet = new Set(multiPlatResult.deletedGhostIds)
+        for (let i = pruningList.length - 1; i >= 0; i--) {
+          if (deletedSet.has(pruningList[i].id)) {
+            pruningList.splice(i, 1)
+          }
+        }
+      }
+
       console.log(
-        `Identified ${String(digests.length)} untagged images that are a part of a tagged multi-arch image`,
+        `Identified ${String(multiPlatResult.digests.length)} untagged images that are a part of a tagged multi-arch image`,
       )
 
       for (let i = pruningList.length - 1; i >= 0; i--) {
         const image = pruningList[i]
 
-        if (digests.includes(image.name)) {
+        if (multiPlatResult.digests.includes(image.name)) {
           pruningList.splice(i, 1)
         }
       }
