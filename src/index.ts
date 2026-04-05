@@ -39,6 +39,7 @@ const writeSummary = async (
   dryRun: boolean,
   pruningVersions: ContainerVersion[],
   prunedVersions: ContainerVersion[],
+  deletedGhostVersions: ContainerVersion[] = [],
 ): Promise<void> => {
   const allPruned = pruningVersions.length === prunedVersions.length
 
@@ -61,7 +62,7 @@ const writeSummary = async (
     )
   }
 
-  await summary
+  summary = summary
     .addHeading('Pruned versions', 3)
     .addRaw(
       `The following ${String(prunedVersions.length)} versions were successfully pruned:`,
@@ -80,7 +81,30 @@ const writeSummary = async (
         version.metadata.container.tags.join(', '),
       ]),
     ])
-    .write()
+
+  if (deletedGhostVersions.length > 0) {
+    summary = summary
+      .addHeading('Deleted ghost versions', 3)
+      .addRaw(
+        `The following ${String(deletedGhostVersions.length)} ghost version(s) were deleted during manifest crawling (listed by Packages API but missing from Docker Registry):`,
+      )
+      .addTable([
+        [
+          { data: 'ID', header: true },
+          { data: 'Name', header: true },
+          { data: 'Created at', header: true },
+          { data: 'Tags', header: true },
+        ],
+        ...deletedGhostVersions.map((version) => [
+          String(version.id),
+          version.name,
+          version.created_at.replace('T', ' '),
+          version.metadata.container.tags.join(', '),
+        ]),
+      ])
+  }
+
+  await summary.write()
 }
 
 const run = async (): Promise<void> => {
@@ -189,6 +213,8 @@ const run = async (): Promise<void> => {
       filterVersion,
     )(keepLast)
 
+    const deletedGhostVersions: ContainerVersion[] = []
+
     if (removeMultiPlatform) {
       const dockerAPIClient = createDockerAPIClient()
       const dockerAPIGetCmd = dockerAPIGet(
@@ -207,11 +233,12 @@ const run = async (): Promise<void> => {
         pruneVersion,
       )(pruningList)
 
-      // Remove versions already deleted as ghosts to avoid double-delete in prune()
+      // Collect and remove versions already deleted as ghosts to avoid double-delete in prune()
       if (multiPlatResult.deletedGhostIds.length > 0) {
         const deletedSet = new Set(multiPlatResult.deletedGhostIds)
         for (let i = pruningList.length - 1; i >= 0; i--) {
           if (deletedSet.has(pruningList[i].id)) {
+            deletedGhostVersions.push(pruningList[i])
             pruningList.splice(i, 1)
           }
         }
@@ -241,11 +268,12 @@ const run = async (): Promise<void> => {
         pruningSetIds,
       )()
 
-      // Remove versions already deleted as ghosts to avoid double-delete in prune()
+      // Collect and remove versions already deleted as ghosts to avoid double-delete in prune()
       if (multiPlatResult.deletedGhostIds.length > 0) {
         const deletedSet = new Set(multiPlatResult.deletedGhostIds)
         for (let i = pruningList.length - 1; i >= 0; i--) {
           if (deletedSet.has(pruningList[i].id)) {
+            deletedGhostVersions.push(pruningList[i])
             pruningList.splice(i, 1)
           }
         }
@@ -270,7 +298,13 @@ const run = async (): Promise<void> => {
 
     const prunedList = await prune(pruneVersion)(pruningList)
 
-    await writeSummary(container, dryRun, pruningList, prunedList)
+    await writeSummary(
+      container,
+      dryRun,
+      pruningList,
+      prunedList,
+      deletedGhostVersions,
+    )
 
     if (prunedList.length !== pruningList.length) {
       core.setFailed(
@@ -278,11 +312,14 @@ const run = async (): Promise<void> => {
       )
     }
 
-    core.setOutput('count', prunedList.length)
-    core.setOutput(
-      'prunedVersionIds',
-      prunedList.map((version) => version.id),
-    )
+    const totalPrunedCount = prunedList.length + deletedGhostVersions.length
+    const totalPrunedIds = [
+      ...prunedList.map((version) => version.id),
+      ...deletedGhostVersions.map((version) => version.id),
+    ]
+
+    core.setOutput('count', totalPrunedCount)
+    core.setOutput('prunedVersionIds', totalPrunedIds)
     core.setOutput('dryRun', dryRun)
   } catch (error: unknown) {
     if (error instanceof Error) {

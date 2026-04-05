@@ -256,11 +256,11 @@ steps:
 
 ### count
 
-The count of container versions which were successfully pruned by the action.
+The count of container versions which were successfully pruned by the action. When `ghcr-404-behavior: delete` is used, this includes ghost versions that were deleted during manifest crawling.
 
 ### prunedVersionIds
 
-An array containing all the version IDs successfully pruned as part of the run.
+An array containing all the version IDs successfully pruned as part of the run. When `ghcr-404-behavior: delete` is used, this includes IDs of ghost versions that were deleted during manifest crawling.
 
 ### dryRun
 
