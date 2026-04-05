@@ -16,7 +16,7 @@ import {
 } from './pruning'
 import { versionFilter } from './version-filter'
 import { getManifest, createDockerAPIClient, dockerAPIGet } from './docker-api'
-import type { ContainerVersion } from './types'
+import type { ContainerVersion, Ghcr404Behavior } from './types'
 
 const asBoolean = (v: string): boolean => 'true' === v
 
@@ -122,6 +122,16 @@ const run = async (): Promise<void> => {
       return
     }
 
+    const ghcr404BehaviorInput = core.getInput('ghcr-404-behavior')
+    const validBehaviors: Ghcr404Behavior[] = ['fail', 'warn', 'delete']
+    if (!validBehaviors.includes(ghcr404BehaviorInput as Ghcr404Behavior)) {
+      core.setFailed(
+        `Input \`ghcr-404-behavior\` must be one of: ${validBehaviors.join(', ')}. Got: '${ghcr404BehaviorInput}'.`,
+      )
+      return
+    }
+    const ghcr404Behavior = ghcr404BehaviorInput as Ghcr404Behavior
+
     if (removeMultiPlatform && pruneUntagged) {
       core.setFailed(
         'Inputs `remove-multi-platform` and `prune-untagged` are mutually exclusive and must not both be provided in the same run.',
@@ -193,6 +203,8 @@ const run = async (): Promise<void> => {
         listVersions,
         getManifestByTag,
         ghcrMaxRetries,
+        ghcr404Behavior,
+        pruneVersion,
       )(pruningList)
 
       if (multiPlatPruningList) {
@@ -212,6 +224,8 @@ const run = async (): Promise<void> => {
         listVersions,
         getManifestByTag,
         ghcrMaxRetries,
+        ghcr404Behavior,
+        pruneVersion,
       )()
 
       console.log(

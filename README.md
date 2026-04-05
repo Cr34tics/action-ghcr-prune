@@ -207,6 +207,46 @@ steps:
 
 When a manifest fetch returns a 404, it is added to a retry queue instead of being retried immediately. After all other manifests have been processed, the queued manifests are retried. If a manifest still returns 404, it is re-queued for the next round. Exponential backoff (1s, 2s, 4s, 8s, 16s, … capped at 30s) is applied between retry rounds. With the default of 5 retry rounds, the worst-case additional wait is approximately 31 seconds total across all rounds. Set to `0` to disable retries entirely.
 
+### ghcr-404-behavior
+
+**Optional** Behavior when manifests still return 404 after all retry rounds (i.e. ghost versions). Defaults to `fail`.
+
+| Value    | Description                                                                                                                                      |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `fail`   | Error and stop. This is the default and preserves backward-compatible behavior.                                                                  |
+| `warn`   | Log a warning for each ghost version and skip them. The action continues without failing.                                                        |
+| `delete` | Attempt to delete each ghost version via the GitHub Packages API. After deletion, re-list versions to validate that ghosts are no longer listed. |
+
+Ghost versions are container versions that appear in the GitHub Packages API listing but whose manifests cannot be fetched from the Docker Registry (both v1 and v2 endpoints return 404 even after retries).
+
+Example usage with `warn`:
+
+```yml
+steps:
+  - name: Prune
+    uses: Cr34tics/action-ghcr-prune@v1
+    with:
+      token: ${{ secrets.YOUR_TOKEN }}
+      organization: your-org
+      container: your-container
+      prune-untagged: true
+      ghcr-404-behavior: warn
+```
+
+Example usage with `delete` to clean up ghost versions:
+
+```yml
+steps:
+  - name: Prune and clean ghosts
+    uses: Cr34tics/action-ghcr-prune@v1
+    with:
+      token: ${{ secrets.YOUR_TOKEN }}
+      organization: your-org
+      container: your-container
+      prune-untagged: true
+      ghcr-404-behavior: delete
+```
+
 ## Outputs
 
 ### count

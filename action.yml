@@ -62,6 +62,14 @@ inputs:
     description: 'Maximum number of retry rounds for transient 404 errors from the GHCR Docker API. Failed manifests are queued and retried after all others are processed, with exponential backoff between rounds.'
     required: false
     default: 5
+  ghcr-404-behavior:
+    description: |
+      Behavior when manifests still return 404 after all retry rounds.
+      `fail` — error and stop (default, backwards compatible).
+      `warn` — log a warning and skip ghost versions.
+      `delete` — attempt to delete ghost versions via the Packages API, then re-list to validate removal.
+    required: false
+    default: 'fail'
 output:
   count:
     description: 'Count of container versions that were pruned'

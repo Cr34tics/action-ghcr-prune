@@ -356,4 +356,179 @@ describe('processManifestsWithRetryQueue', () => {
     // 1 first pass + 5 default retry rounds = 6 calls
     expect(getManifest).toHaveBeenCalledTimes(6)
   })
+
+  describe('ghost404Behavior: warn', () => {
+    it('should warn and skip when manifests still 404 after retries', async () => {
+      const getManifest = vi.fn().mockRejectedValue(new Docker404Error('url1'))
+
+      const images = [taggedVersion(1, 'v1')]
+
+      const digests = await processManifestsWithRetryQueue(
+        getManifest,
+        2,
+        'warn',
+      )(images)
+
+      expect(digests).toEqual([])
+      // 1 first pass + 2 retries = 3 calls
+      expect(getManifest).toHaveBeenCalledTimes(3)
+      expect(core.warning).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '1 manifest(s) still returned 404 after 2 retry round(s)',
+        ),
+      )
+    })
+
+    it('should return partial digests and warn for remaining ghosts', async () => {
+      const getManifest = vi
+        .fn()
+        // First pass: image1 succeeds, image2 404s
+        .mockResolvedValueOnce(multiPlatManifest(['sha256:aaa']))
+        .mockRejectedValueOnce(new Docker404Error('url2'))
+        // Retry: image2 still 404
+        .mockRejectedValueOnce(new Docker404Error('url2'))
+
+      const images = [taggedVersion(1, 'v1'), taggedVersion(2, 'v2')]
+
+      const digests = await processManifestsWithRetryQueue(
+        getManifest,
+        1,
+        'warn',
+      )(images)
+
+      expect(digests).toEqual(['sha256:aaa'])
+      expect(core.warning).toHaveBeenCalledWith(
+        expect.stringContaining('1 manifest(s) still returned 404'),
+      )
+    })
+  })
+
+  describe('ghost404Behavior: delete', () => {
+    it('should delete ghost versions via provided delete function', async () => {
+      const getManifest = vi.fn().mockRejectedValue(new Docker404Error('url1'))
+
+      const deleteGhostVersion = vi.fn().mockResolvedValue(undefined)
+
+      // listVersions returns empty (ghost successfully removed)
+      const listVersions = vi.fn().mockResolvedValue({ data: [] })
+
+      const images = [taggedVersion(1, 'v1')]
+
+      const digests = await processManifestsWithRetryQueue(
+        getManifest,
+        1,
+        'delete',
+        deleteGhostVersion,
+        listVersions,
+      )(images)
+
+      expect(digests).toEqual([])
+      expect(deleteGhostVersion).toHaveBeenCalledTimes(1)
+      expect(deleteGhostVersion).toHaveBeenCalledWith(images[0])
+      expect(core.info).toHaveBeenCalledWith(
+        expect.stringContaining('Deleted ghost version id=1'),
+      )
+      expect(core.info).toHaveBeenCalledWith(
+        expect.stringContaining('confirmed removed'),
+      )
+    })
+
+    it('should warn if ghost deletion fails', async () => {
+      const getManifest = vi.fn().mockRejectedValue(new Docker404Error('url1'))
+
+      const deleteGhostVersion = vi
+        .fn()
+        .mockRejectedValue(new Error('Permission denied'))
+
+      const listVersions = vi.fn().mockResolvedValue({ data: [] })
+
+      const images = [taggedVersion(1, 'v1')]
+
+      const digests = await processManifestsWithRetryQueue(
+        getManifest,
+        1,
+        'delete',
+        deleteGhostVersion,
+        listVersions,
+      )(images)
+
+      expect(digests).toEqual([])
+      expect(core.warning).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to delete ghost version id=1'),
+      )
+    })
+
+    it('should warn if ghost versions still listed after deletion', async () => {
+      const getManifest = vi.fn().mockRejectedValue(new Docker404Error('url1'))
+
+      const deleteGhostVersion = vi.fn().mockResolvedValue(undefined)
+
+      // Ghost is still listed after deletion
+      const listVersions = vi.fn().mockResolvedValue({
+        data: [taggedVersion(1, 'v1')],
+      })
+
+      const images = [taggedVersion(1, 'v1')]
+
+      const digests = await processManifestsWithRetryQueue(
+        getManifest,
+        1,
+        'delete',
+        deleteGhostVersion,
+        listVersions,
+      )(images)
+
+      expect(digests).toEqual([])
+      expect(core.warning).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '1 ghost version(s) still listed after deletion',
+        ),
+      )
+    })
+
+    it('should throw if delete function is not provided', async () => {
+      const getManifest = vi.fn().mockRejectedValue(new Docker404Error('url1'))
+
+      const images = [taggedVersion(1, 'v1')]
+
+      await expect(
+        processManifestsWithRetryQueue(getManifest, 1, 'delete')(images),
+      ).rejects.toThrow(
+        'ghcr-404-behavior is set to `delete` but no delete function was provided',
+      )
+    })
+
+    it('should delete multiple ghost versions and validate', async () => {
+      const getManifest = vi
+        .fn()
+        // First pass: both 404
+        .mockRejectedValueOnce(new Docker404Error('url1'))
+        .mockRejectedValueOnce(new Docker404Error('url2'))
+        // Retry: both still 404
+        .mockRejectedValueOnce(new Docker404Error('url1'))
+        .mockRejectedValueOnce(new Docker404Error('url2'))
+
+      const deleteGhostVersion = vi.fn().mockResolvedValue(undefined)
+
+      const listVersions = vi.fn().mockResolvedValue({ data: [] })
+
+      const images = [taggedVersion(1, 'v1'), taggedVersion(2, 'v2')]
+
+      const digests = await processManifestsWithRetryQueue(
+        getManifest,
+        1,
+        'delete',
+        deleteGhostVersion,
+        listVersions,
+      )(images)
+
+      expect(digests).toEqual([])
+      expect(deleteGhostVersion).toHaveBeenCalledTimes(2)
+      expect(core.info).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'All 2 deleted ghost version(s) confirmed removed',
+        ),
+      )
+    })
+  })
 })
