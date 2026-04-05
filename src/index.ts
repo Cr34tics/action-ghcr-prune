@@ -279,7 +279,7 @@ const run = async (): Promise<void> => {
         }
       }
 
-      console.log(
+      core.info(
         `Identified ${String(multiPlatResult.digests.length)} untagged images that are a part of a tagged multi-arch image`,
       )
 
