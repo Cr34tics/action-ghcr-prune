@@ -363,6 +363,8 @@ describe('processManifestsWithRetryQueue', () => {
   })
 
   describe('ghost404Behavior: warn', () => {
+    beforeEach(() => vi.clearAllMocks())
+
     it('should warn and skip when manifests still 404 after retries', async () => {
       const getManifest = vi.fn().mockRejectedValue(new Docker404Error('url1'))
 
@@ -411,6 +413,8 @@ describe('processManifestsWithRetryQueue', () => {
   })
 
   describe('ghost404Behavior: delete', () => {
+    beforeEach(() => vi.clearAllMocks())
+
     it('should delete ghost versions and return their IDs', async () => {
       const getManifest = vi.fn().mockRejectedValue(new Docker404Error('url1'))
 
