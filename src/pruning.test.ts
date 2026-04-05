@@ -541,5 +541,103 @@ describe('processManifestsWithRetryQueue', () => {
         ),
       )
     })
+
+    it('should warn on transient validation error instead of failing', async () => {
+      const getManifest = vi.fn().mockRejectedValue(new Docker404Error('url1'))
+
+      const deleteGhostVersion = vi.fn().mockResolvedValue(undefined)
+
+      // listVersions throws a transient error during validation
+      const listVersions = vi
+        .fn()
+        .mockRejectedValue(new Error('Rate limit exceeded'))
+
+      const images = [taggedVersion(1, 'v1')]
+
+      const result = await processManifestsWithRetryQueue(
+        getManifest,
+        1,
+        'delete',
+        deleteGhostVersion,
+        listVersions,
+      )(images)
+
+      expect(result.digests).toEqual([])
+      expect(result.deletedGhostIds).toEqual([1])
+      expect(deleteGhostVersion).toHaveBeenCalledTimes(1)
+      expect(core.warning).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'Unable to validate deleted ghost version(s) due to a transient error',
+        ),
+      )
+    })
+
+    it('should only delete ghosts in the deletableIds set', async () => {
+      const getManifest = vi
+        .fn()
+        // First pass: both 404
+        .mockRejectedValueOnce(new Docker404Error('url1'))
+        .mockRejectedValueOnce(new Docker404Error('url2'))
+        // Retry: both still 404
+        .mockRejectedValueOnce(new Docker404Error('url1'))
+        .mockRejectedValueOnce(new Docker404Error('url2'))
+
+      const deleteGhostVersion = vi.fn().mockResolvedValue(undefined)
+
+      const listVersions = vi.fn().mockResolvedValue({ data: [] })
+
+      const images = [taggedVersion(1, 'v1'), taggedVersion(2, 'v2')]
+
+      // Only version 1 is in the pruning set
+      const deletableIds = new Set([1])
+
+      const result = await processManifestsWithRetryQueue(
+        getManifest,
+        1,
+        'delete',
+        deleteGhostVersion,
+        listVersions,
+        deletableIds,
+      )(images)
+
+      expect(result.digests).toEqual([])
+      // Only version 1 should be deleted
+      expect(result.deletedGhostIds).toEqual([1])
+      expect(deleteGhostVersion).toHaveBeenCalledTimes(1)
+      expect(deleteGhostVersion).toHaveBeenCalledWith(images[0])
+      // Version 2 should be warned about as not in pruning set
+      expect(core.warning).toHaveBeenCalledWith(
+        expect.stringContaining('not in pruning set'),
+      )
+    })
+
+    it('should skip all ghosts when none are in deletableIds', async () => {
+      const getManifest = vi.fn().mockRejectedValue(new Docker404Error('url1'))
+
+      const deleteGhostVersion = vi.fn().mockResolvedValue(undefined)
+
+      const listVersions = vi.fn().mockResolvedValue({ data: [] })
+
+      const images = [taggedVersion(1, 'v1')]
+
+      // Empty deletable set - ghost is not in pruning set
+      const deletableIds = new Set<number>()
+
+      const result = await processManifestsWithRetryQueue(
+        getManifest,
+        1,
+        'delete',
+        deleteGhostVersion,
+        listVersions,
+        deletableIds,
+      )(images)
+
+      expect(result.digests).toEqual([])
+      expect(result.deletedGhostIds).toEqual([])
+      expect(deleteGhostVersion).not.toHaveBeenCalled()
+      expect(core.warning).toHaveBeenCalledWith(
+        expect.stringContaining('not in pruning set'),
+      )
+    })
   })
 })

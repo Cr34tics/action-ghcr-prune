@@ -44,6 +44,7 @@ export const processManifestsWithRetryQueue =
     ghost404Behavior: Ghcr404Behavior = 'fail',
     deleteGhostVersion?: (version: ContainerVersion) => Promise<unknown>,
     listVersions?: ListVersionsFn,
+    deletableIds?: Set<number>,
   ) =>
   async (images: ContainerVersion[]): Promise<ManifestProcessingResult> => {
     const safeMaxRetries =
@@ -131,8 +132,28 @@ export const processManifestsWithRetryQueue =
           )
         }
 
+        // When deletableIds is provided, only delete ghosts that are in the pruning set
+        const deletableGhosts = deletableIds
+          ? retryQueue.filter((g) => deletableIds.has(g.id))
+          : retryQueue
+        const skippedGhosts = deletableIds
+          ? retryQueue.filter((g) => !deletableIds.has(g.id))
+          : []
+
+        if (skippedGhosts.length > 0) {
+          const skippedSummary = skippedGhosts
+            .map(
+              (v) =>
+                `id=${String(v.id)} tags=[${v.metadata.container.tags.join(', ')}]`,
+            )
+            .join('; ')
+          core.warning(
+            `${String(skippedGhosts.length)} ghost version(s) not in pruning set, skipping deletion: ${skippedSummary}`,
+          )
+        }
+
         const deletedIds: number[] = []
-        for (const ghost of retryQueue) {
+        for (const ghost of deletableGhosts) {
           try {
             await deleteGhostVersion(ghost)
             deletedIds.push(ghost.id)
@@ -150,18 +171,24 @@ export const processManifestsWithRetryQueue =
           core.info(
             'Validating ghost versions are no longer listed after deletion...',
           )
-          const remainingGhostIds = await validateGhostsDeleted(
-            listVersions,
-            deletedIds,
-          )
-
-          if (remainingGhostIds.length > 0) {
-            core.warning(
-              `${String(remainingGhostIds.length)} ghost version(s) still listed after deletion: ${remainingGhostIds.map(String).join(', ')}`,
+          try {
+            const remainingGhostIds = await validateGhostsDeleted(
+              listVersions,
+              deletedIds,
             )
-          } else {
-            core.info(
-              `All ${String(deletedIds.length)} deleted ghost version(s) confirmed removed.`,
+
+            if (remainingGhostIds.length > 0) {
+              core.warning(
+                `${String(remainingGhostIds.length)} ghost version(s) still listed after deletion: ${remainingGhostIds.map(String).join(', ')}`,
+              )
+            } else {
+              core.info(
+                `All ${String(deletedIds.length)} deleted ghost version(s) confirmed removed.`,
+              )
+            }
+          } catch (error) {
+            core.warning(
+              `Unable to validate deleted ghost version(s) due to a transient error: ${error instanceof Error ? error.message : String(error)}`,
             )
           }
         }
@@ -213,6 +240,7 @@ export const getAllMultiPlatList =
     maxRetries = 5,
     ghost404Behavior: Ghcr404Behavior = 'fail',
     deleteGhostVersion?: (version: ContainerVersion) => Promise<unknown>,
+    deletableIds?: Set<number>,
   ) =>
   async (): Promise<ManifestProcessingResult> => {
     let allVersions: ContainerVersion[] = []
@@ -234,6 +262,7 @@ export const getAllMultiPlatList =
       ghost404Behavior,
       deleteGhostVersion,
       listVersions,
+      deletableIds,
     )(allVersions)
   }
 

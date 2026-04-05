@@ -219,6 +219,11 @@ When a manifest fetch returns a 404, it is added to a retry queue instead of bei
 
 Ghost versions are container versions that appear in the GitHub Packages API listing but whose manifests cannot be fetched from the Docker Registry (both v1 and v2 endpoints return 404 even after retries).
 
+> [!NOTE]
+> With `ghcr-404-behavior: delete`, ghost deletion is limited to versions that are in the pruning set. When `prune-untagged: true` is enabled, the action crawls all tagged versions to identify multi-platform child digests; any ghost version encountered during that crawl that would otherwise be excluded by `keep-tags`, `keep-tags-regexes`, `keep-younger-than`, or `keep-last` filters is skipped with a warning instead of being deleted. When `remove-multi-platform` is enabled, only the pruning list is crawled, so all ghosts are inherently in the pruning set.
+>
+> In `dry-run` mode, `ghcr-404-behavior: delete` is automatically overridden to `warn` so that no ghost versions are actually deleted during the dry run.
+
 Example usage with `warn`:
 
 ```yml

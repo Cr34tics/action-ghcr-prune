@@ -203,7 +203,7 @@ const run = async (): Promise<void> => {
         listVersions,
         getManifestByTag,
         ghcrMaxRetries,
-        ghcr404Behavior,
+        dryRun ? 'warn' : ghcr404Behavior,
         pruneVersion,
       )(pruningList)
 
@@ -230,12 +230,15 @@ const run = async (): Promise<void> => {
       )
       const getManifestByTag = getManifest(dockerAPIGetCmd)
 
+      const pruningSetIds = new Set(pruningList.map((v) => v.id))
+
       const multiPlatResult = await getAllMultiPlatList(
         listVersions,
         getManifestByTag,
         ghcrMaxRetries,
-        ghcr404Behavior,
+        dryRun ? 'warn' : ghcr404Behavior,
         pruneVersion,
+        pruningSetIds,
       )()
 
       // Remove versions already deleted as ghosts to avoid double-delete in prune()
