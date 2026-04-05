@@ -99,18 +99,23 @@ export const processManifestsWithRetryQueue =
     }
 
     if (retryQueue.length > 0) {
-      const ghostSummary = retryQueue
-        .map(
-          (v) =>
-            `id=${String(v.id)} tags=[${v.metadata.container.tags.join(', ')}]`,
-        )
-        .join('; ')
-
       if (ghost404Behavior === 'warn') {
+        const ghostSummary = retryQueue
+          .map(
+            (v) =>
+              `id=${String(v.id)} tags=[${v.metadata.container.tags.join(', ')}]`,
+          )
+          .join('; ')
         core.warning(
           `${String(retryQueue.length)} manifest(s) still returned 404 after ${String(safeMaxRetries)} retry round(s). Treating as ghost version(s) and skipping: ${ghostSummary}`,
         )
       } else if (ghost404Behavior === 'delete') {
+        const ghostSummary = retryQueue
+          .map(
+            (v) =>
+              `id=${String(v.id)} tags=[${v.metadata.container.tags.join(', ')}]`,
+          )
+          .join('; ')
         core.warning(
           `${String(retryQueue.length)} ghost version(s) detected after ${String(safeMaxRetries)} retry round(s): ${ghostSummary}. Attempting to delete via Packages API...`,
         )
