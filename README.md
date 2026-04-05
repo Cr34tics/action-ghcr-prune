@@ -207,15 +207,60 @@ steps:
 
 When a manifest fetch returns a 404, it is added to a retry queue instead of being retried immediately. After all other manifests have been processed, the queued manifests are retried. If a manifest still returns 404, it is re-queued for the next round. Exponential backoff (1s, 2s, 4s, 8s, 16s, … capped at 30s) is applied between retry rounds. With the default of 5 retry rounds, the worst-case additional wait is approximately 31 seconds total across all rounds. Set to `0` to disable retries entirely.
 
+### ghcr-404-behavior
+
+**Optional** Behavior when manifests still return 404 after all retry rounds (i.e. ghost versions). Defaults to `fail`.
+
+| Value    | Description                                                                                                                                      |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `fail`   | Error and stop. This is the default and preserves backward-compatible behavior.                                                                  |
+| `warn`   | Log a single aggregated warning for the remaining ghost versions and skip them. The action continues without failing.                            |
+| `delete` | Attempt to delete each ghost version via the GitHub Packages API. After deletion, re-list versions to validate that ghosts are no longer listed. |
+
+Ghost versions are container versions that appear in the GitHub Packages API listing but whose manifests cannot be fetched from the Docker Registry (both v1 and v2 endpoints return 404 even after retries).
+
+> [!NOTE]
+> With `ghcr-404-behavior: delete`, ghost deletion is limited to versions that are in the pruning set. When `prune-untagged: true` is enabled, the action crawls all tagged versions to identify multi-platform child digests; any ghost version encountered during that crawl that would otherwise be excluded by `keep-tags`, `keep-tags-regexes`, `keep-younger-than`, or `keep-last` filters is skipped with a warning instead of being deleted. When `remove-multi-platform` is enabled, only the pruning list is crawled, so all ghosts are inherently in the pruning set.
+>
+> In `dry-run` mode, `ghcr-404-behavior: delete` is automatically overridden to `warn` so that no ghost versions are actually deleted during the dry run.
+
+Example usage with `warn`:
+
+```yml
+steps:
+  - name: Prune
+    uses: Cr34tics/action-ghcr-prune@v1
+    with:
+      token: ${{ secrets.YOUR_TOKEN }}
+      organization: your-org
+      container: your-container
+      prune-untagged: true
+      ghcr-404-behavior: warn
+```
+
+Example usage with `delete` to clean up ghost versions:
+
+```yml
+steps:
+  - name: Prune and clean ghosts
+    uses: Cr34tics/action-ghcr-prune@v1
+    with:
+      token: ${{ secrets.YOUR_TOKEN }}
+      organization: your-org
+      container: your-container
+      prune-untagged: true
+      ghcr-404-behavior: delete
+```
+
 ## Outputs
 
 ### count
 
-The count of container versions which were successfully pruned by the action.
+The count of container versions which were successfully pruned by the action. When `ghcr-404-behavior: delete` is used, this includes ghost versions that were deleted during manifest crawling.
 
 ### prunedVersionIds
 
-An array containing all the version IDs successfully pruned as part of the run.
+An array containing all the version IDs successfully pruned as part of the run. When `ghcr-404-behavior: delete` is used, this includes IDs of ghost versions that were deleted during manifest crawling.
 
 ### dryRun
 

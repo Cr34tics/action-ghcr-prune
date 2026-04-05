@@ -1,5 +1,5 @@
 import * as core from '@actions/core'
-import type { ContainerVersion, DockerManifest } from './types'
+import type { ContainerVersion, DockerManifest, Ghcr404Behavior } from './types'
 import { digestFilter } from './version-filter'
 import { Docker404Error, delay, getBackoffMs } from './docker-api'
 
@@ -32,9 +32,21 @@ const collectDigests = (manifest: DockerManifest): string[] => {
   return digests
 }
 
+export interface ManifestProcessingResult {
+  digests: string[]
+  deletedGhostIds: number[]
+}
+
 export const processManifestsWithRetryQueue =
-  (getManifest: (tag: string) => Promise<DockerManifest>, maxRetries: number) =>
-  async (images: ContainerVersion[]): Promise<string[]> => {
+  (
+    getManifest: (tag: string) => Promise<DockerManifest>,
+    maxRetries: number,
+    ghost404Behavior: Ghcr404Behavior = 'fail',
+    deleteGhostVersion?: (version: ContainerVersion) => Promise<unknown>,
+    listVersions?: ListVersionsFn,
+    deletableIds?: Set<number>,
+  ) =>
+  async (images: ContainerVersion[]): Promise<ManifestProcessingResult> => {
     const safeMaxRetries =
       Number.isFinite(maxRetries) &&
       Number.isInteger(maxRetries) &&
@@ -93,13 +105,128 @@ export const processManifestsWithRetryQueue =
     }
 
     if (retryQueue.length > 0) {
-      const message = `${String(retryQueue.length)} manifest(s) still returned 404 after ${String(safeMaxRetries)} retry round(s)`
-      core.error(message)
-      throw new Error(message)
+      if (ghost404Behavior === 'warn') {
+        const ghostSummary = retryQueue
+          .map(
+            (v) =>
+              `id=${String(v.id)} tags=[${v.metadata.container.tags.join(', ')}]`,
+          )
+          .join('; ')
+        core.warning(
+          `${String(retryQueue.length)} manifest(s) still returned 404 after ${String(safeMaxRetries)} retry round(s). Treating as ghost version(s) and skipping: ${ghostSummary}`,
+        )
+      } else if (ghost404Behavior === 'delete') {
+        const ghostSummary = retryQueue
+          .map(
+            (v) =>
+              `id=${String(v.id)} tags=[${v.metadata.container.tags.join(', ')}]`,
+          )
+          .join('; ')
+        core.warning(
+          `${String(retryQueue.length)} ghost version(s) detected after ${String(safeMaxRetries)} retry round(s): ${ghostSummary}. Attempting to delete via Packages API...`,
+        )
+
+        if (!deleteGhostVersion) {
+          throw new Error(
+            'ghcr-404-behavior is set to `delete` but no delete function was provided',
+          )
+        }
+
+        // When deletableIds is provided, only delete ghosts that are in the pruning set
+        const deletableGhosts = deletableIds
+          ? retryQueue.filter((g) => deletableIds.has(g.id))
+          : retryQueue
+        const skippedGhosts = deletableIds
+          ? retryQueue.filter((g) => !deletableIds.has(g.id))
+          : []
+
+        if (skippedGhosts.length > 0) {
+          const skippedSummary = skippedGhosts
+            .map(
+              (v) =>
+                `id=${String(v.id)} tags=[${v.metadata.container.tags.join(', ')}]`,
+            )
+            .join('; ')
+          core.warning(
+            `${String(skippedGhosts.length)} ghost version(s) not in pruning set, skipping deletion: ${skippedSummary}`,
+          )
+        }
+
+        const deletedIds: number[] = []
+        for (const ghost of deletableGhosts) {
+          try {
+            await deleteGhostVersion(ghost)
+            deletedIds.push(ghost.id)
+            core.info(
+              `Deleted ghost version id=${String(ghost.id)} tags=[${ghost.metadata.container.tags.join(', ')}]`,
+            )
+          } catch (error) {
+            core.warning(
+              `Failed to delete ghost version id=${String(ghost.id)}: ${error instanceof Error ? error.message : String(error)}`,
+            )
+          }
+        }
+
+        if (deletedIds.length > 0 && listVersions) {
+          core.info(
+            'Validating ghost versions are no longer listed after deletion...',
+          )
+          try {
+            const remainingGhostIds = await validateGhostsDeleted(
+              listVersions,
+              deletedIds,
+            )
+
+            if (remainingGhostIds.length > 0) {
+              core.warning(
+                `${String(remainingGhostIds.length)} ghost version(s) still listed after deletion: ${remainingGhostIds.map(String).join(', ')}`,
+              )
+            } else {
+              core.info(
+                `All ${String(deletedIds.length)} deleted ghost version(s) confirmed removed.`,
+              )
+            }
+          } catch (error) {
+            core.warning(
+              `Unable to validate deleted ghost version(s) due to a transient error: ${error instanceof Error ? error.message : String(error)}`,
+            )
+          }
+        }
+
+        return { digests: allDigests, deletedGhostIds: deletedIds }
+      } else {
+        const message = `${String(retryQueue.length)} manifest(s) still returned 404 after ${String(safeMaxRetries)} retry round(s)`
+        core.error(message)
+        throw new Error(message)
+      }
     }
 
-    return allDigests
+    return { digests: allDigests, deletedGhostIds: [] }
   }
+
+const validateGhostsDeleted = async (
+  listVersions: ListVersionsFn,
+  ghostIds: number[],
+): Promise<number[]> => {
+  const ghostIdSet = new Set(ghostIds)
+  const remainingGhosts: number[] = []
+  let page = 1
+  let lastPageSize
+
+  do {
+    const { data: versions } = await listVersions(PAGE_SIZE, page)
+    lastPageSize = versions.length
+    for (const version of versions as ContainerVersion[]) {
+      if (ghostIdSet.has(version.id)) {
+        remainingGhosts.push(version.id)
+        ghostIdSet.delete(version.id)
+      }
+    }
+    page++
+  } while (lastPageSize >= PAGE_SIZE && ghostIdSet.size > 0)
+
+  return remainingGhosts
+}
 
 type ListVersionsFn = (
   pageSize: number,
@@ -111,8 +238,11 @@ export const getAllMultiPlatList =
     listVersions: ListVersionsFn,
     getManifest: (tag: string) => Promise<DockerManifest>,
     maxRetries = 5,
+    ghost404Behavior: Ghcr404Behavior = 'fail',
+    deleteGhostVersion?: (version: ContainerVersion) => Promise<unknown>,
+    deletableIds?: Set<number>,
   ) =>
-  async (): Promise<string[]> => {
+  async (): Promise<ManifestProcessingResult> => {
     let allVersions: ContainerVersion[] = []
     let lastPageSize
     let page = 1
@@ -126,36 +256,54 @@ export const getAllMultiPlatList =
       page++
     } while (lastPageSize >= PAGE_SIZE)
 
-    return processManifestsWithRetryQueue(getManifest, maxRetries)(allVersions)
+    return processManifestsWithRetryQueue(
+      getManifest,
+      maxRetries,
+      ghost404Behavior,
+      deleteGhostVersion,
+      listVersions,
+      deletableIds,
+    )(allVersions)
   }
+
+export interface MultiPlatPruningResult {
+  versions?: ContainerVersion[]
+  deletedGhostIds: number[]
+}
 
 export const getMultiPlatPruningList =
   (
     listVersions: ListVersionsFn,
     getManifest: (tag: string) => Promise<DockerManifest>,
     maxRetries = 5,
+    ghost404Behavior: Ghcr404Behavior = 'fail',
+    deleteGhostVersion?: (version: ContainerVersion) => Promise<unknown>,
   ) =>
-  async (
-    pruningList: ContainerVersion[],
-  ): Promise<ContainerVersion[] | undefined> => {
+  async (pruningList: ContainerVersion[]): Promise<MultiPlatPruningResult> => {
     core.info('Crawling through pruning list for multi-platform images...')
 
-    const digests = await processManifestsWithRetryQueue(
+    const result = await processManifestsWithRetryQueue(
       getManifest,
       maxRetries,
+      ghost404Behavior,
+      deleteGhostVersion,
+      listVersions,
     )(pruningList)
 
-    if (digests.length) {
-      const filterByDigests = digestFilter(digests)
+    if (result.digests.length) {
+      const filterByDigests = digestFilter(result.digests)
       /* keepLast can be 0 here as we already know we are pruning these versions */
       const newImagesToPrune = await getPruningList(
         listVersions,
         filterByDigests,
       )(0)
 
-      return newImagesToPrune
+      return {
+        versions: newImagesToPrune,
+        deletedGhostIds: result.deletedGhostIds,
+      }
     } else {
-      return undefined
+      return { versions: undefined, deletedGhostIds: result.deletedGhostIds }
     }
   }
 

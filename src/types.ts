@@ -34,3 +34,5 @@ export interface APIResponse {
   message?: string
   resp?: unknown
 }
+
+export type Ghcr404Behavior = 'fail' | 'warn' | 'delete'

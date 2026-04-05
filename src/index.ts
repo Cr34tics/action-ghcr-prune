@@ -16,7 +16,7 @@ import {
 } from './pruning'
 import { versionFilter } from './version-filter'
 import { getManifest, createDockerAPIClient, dockerAPIGet } from './docker-api'
-import type { ContainerVersion } from './types'
+import type { ContainerVersion, Ghcr404Behavior } from './types'
 
 const asBoolean = (v: string): boolean => 'true' === v
 
@@ -39,6 +39,7 @@ const writeSummary = async (
   dryRun: boolean,
   pruningVersions: ContainerVersion[],
   prunedVersions: ContainerVersion[],
+  deletedGhostVersions: ContainerVersion[] = [],
 ): Promise<void> => {
   const allPruned = pruningVersions.length === prunedVersions.length
 
@@ -61,7 +62,7 @@ const writeSummary = async (
     )
   }
 
-  await summary
+  summary = summary
     .addHeading('Pruned versions', 3)
     .addRaw(
       `The following ${String(prunedVersions.length)} versions were successfully pruned:`,
@@ -80,7 +81,30 @@ const writeSummary = async (
         version.metadata.container.tags.join(', '),
       ]),
     ])
-    .write()
+
+  if (deletedGhostVersions.length > 0) {
+    summary = summary
+      .addHeading('Deleted ghost versions', 3)
+      .addRaw(
+        `The following ${String(deletedGhostVersions.length)} ghost version(s) were deleted during manifest crawling (listed by Packages API but missing from Docker Registry):`,
+      )
+      .addTable([
+        [
+          { data: 'ID', header: true },
+          { data: 'Name', header: true },
+          { data: 'Created at', header: true },
+          { data: 'Tags', header: true },
+        ],
+        ...deletedGhostVersions.map((version) => [
+          String(version.id),
+          version.name,
+          version.created_at.replace('T', ' '),
+          version.metadata.container.tags.join(', '),
+        ]),
+      ])
+  }
+
+  await summary.write()
 }
 
 const run = async (): Promise<void> => {
@@ -121,6 +145,16 @@ const run = async (): Promise<void> => {
       )
       return
     }
+
+    const ghcr404BehaviorInput = core.getInput('ghcr-404-behavior')
+    const validBehaviors: Ghcr404Behavior[] = ['fail', 'warn', 'delete']
+    if (!validBehaviors.includes(ghcr404BehaviorInput as Ghcr404Behavior)) {
+      core.setFailed(
+        `Input \`ghcr-404-behavior\` must be one of: ${validBehaviors.join(', ')}. Got: '${ghcr404BehaviorInput}'.`,
+      )
+      return
+    }
+    const ghcr404Behavior = ghcr404BehaviorInput as Ghcr404Behavior
 
     if (removeMultiPlatform && pruneUntagged) {
       core.setFailed(
@@ -179,6 +213,8 @@ const run = async (): Promise<void> => {
       filterVersion,
     )(keepLast)
 
+    const deletedGhostVersions: ContainerVersion[] = []
+
     if (removeMultiPlatform) {
       const dockerAPIClient = createDockerAPIClient()
       const dockerAPIGetCmd = dockerAPIGet(
@@ -189,14 +225,27 @@ const run = async (): Promise<void> => {
       )
       const getManifestByTag = getManifest(dockerAPIGetCmd)
 
-      const multiPlatPruningList = await getMultiPlatPruningList(
+      const multiPlatResult = await getMultiPlatPruningList(
         listVersions,
         getManifestByTag,
         ghcrMaxRetries,
+        dryRun ? 'warn' : ghcr404Behavior,
+        pruneVersion,
       )(pruningList)
 
-      if (multiPlatPruningList) {
-        pruningList.push(...multiPlatPruningList)
+      // Collect and remove versions already deleted as ghosts to avoid double-delete in prune()
+      if (multiPlatResult.deletedGhostIds.length > 0) {
+        const deletedSet = new Set(multiPlatResult.deletedGhostIds)
+        for (let i = pruningList.length - 1; i >= 0; i--) {
+          if (deletedSet.has(pruningList[i].id)) {
+            deletedGhostVersions.push(pruningList[i])
+            pruningList.splice(i, 1)
+          }
+        }
+      }
+
+      if (multiPlatResult.versions) {
+        pruningList.push(...multiPlatResult.versions)
       }
     } else if (pruneUntagged) {
       const dockerAPIClient = createDockerAPIClient()
@@ -208,20 +257,36 @@ const run = async (): Promise<void> => {
       )
       const getManifestByTag = getManifest(dockerAPIGetCmd)
 
-      const digests = await getAllMultiPlatList(
+      const pruningSetIds = new Set(pruningList.map((v) => v.id))
+
+      const multiPlatResult = await getAllMultiPlatList(
         listVersions,
         getManifestByTag,
         ghcrMaxRetries,
+        dryRun ? 'warn' : ghcr404Behavior,
+        pruneVersion,
+        pruningSetIds,
       )()
 
-      console.log(
-        `Identified ${String(digests.length)} untagged images that are a part of a tagged multi-arch image`,
+      // Collect and remove versions already deleted as ghosts to avoid double-delete in prune()
+      if (multiPlatResult.deletedGhostIds.length > 0) {
+        const deletedSet = new Set(multiPlatResult.deletedGhostIds)
+        for (let i = pruningList.length - 1; i >= 0; i--) {
+          if (deletedSet.has(pruningList[i].id)) {
+            deletedGhostVersions.push(pruningList[i])
+            pruningList.splice(i, 1)
+          }
+        }
+      }
+
+      core.info(
+        `Identified ${String(multiPlatResult.digests.length)} untagged images that are a part of a tagged multi-arch image`,
       )
 
       for (let i = pruningList.length - 1; i >= 0; i--) {
         const image = pruningList[i]
 
-        if (digests.includes(image.name)) {
+        if (multiPlatResult.digests.includes(image.name)) {
           pruningList.splice(i, 1)
         }
       }
@@ -233,7 +298,13 @@ const run = async (): Promise<void> => {
 
     const prunedList = await prune(pruneVersion)(pruningList)
 
-    await writeSummary(container, dryRun, pruningList, prunedList)
+    await writeSummary(
+      container,
+      dryRun,
+      pruningList,
+      prunedList,
+      deletedGhostVersions,
+    )
 
     if (prunedList.length !== pruningList.length) {
       core.setFailed(
@@ -241,11 +312,14 @@ const run = async (): Promise<void> => {
       )
     }
 
-    core.setOutput('count', prunedList.length)
-    core.setOutput(
-      'prunedVersionIds',
-      prunedList.map((version) => version.id),
-    )
+    const totalPrunedCount = prunedList.length + deletedGhostVersions.length
+    const totalPrunedIds = [
+      ...prunedList.map((version) => version.id),
+      ...deletedGhostVersions.map((version) => version.id),
+    ]
+
+    core.setOutput('count', totalPrunedCount)
+    core.setOutput('prunedVersionIds', totalPrunedIds)
     core.setOutput('dryRun', dryRun)
   } catch (error: unknown) {
     if (error instanceof Error) {
