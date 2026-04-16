@@ -20,7 +20,7 @@ vi.mock('@actions/core', () => ({
 }))
 
 // Mock delay to avoid actual waiting in tests
-vi.mock('./docker-api', async (importOriginal) => {
+vi.mock('../src/docker-api', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,

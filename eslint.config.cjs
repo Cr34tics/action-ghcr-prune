@@ -35,7 +35,7 @@ module.exports = [
 
   // Your project rules
   {
-    files: ['src/**/*.ts', 'tests/**/*.ts'],
+    files: ['src/**/*.ts', 'test/**/*.ts'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
