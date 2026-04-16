@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { dockerAPIGet, getBackoffMs, Docker404Error } from './docker-api'
+import { dockerAPIGet, getBackoffMs, Docker404Error } from '../src/docker-api'
 import type { HttpClient, HttpClientResponse } from '@actions/http-client'
 import type { IncomingMessage } from 'http'
 
