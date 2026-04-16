@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { versionFilter } from './version-filter'
-import type { ContainerVersion } from './types'
+import { versionFilter } from '../src/version-filter'
+import type { ContainerVersion } from '../src/types'
 
 // Mock @actions/core to prevent GitHub Actions annotations in test output
 vi.mock('@actions/core', () => ({

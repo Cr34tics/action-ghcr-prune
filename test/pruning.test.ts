@@ -4,9 +4,9 @@ import {
   getPruningList,
   prune,
   processManifestsWithRetryQueue,
-} from './pruning'
-import { Docker404Error } from './docker-api'
-import type { ContainerVersion, DockerManifest } from './types'
+} from '../src/pruning'
+import { Docker404Error } from '../src/docker-api'
+import type { ContainerVersion, DockerManifest } from '../src/types'
 
 // Mock @actions/core to prevent GitHub Actions annotations in test output
 vi.mock('@actions/core', () => ({
