@@ -28,9 +28,13 @@ jobs:
         with:
           node-version: '24'
           cache: 'yarn'
+          cache-dependency-path: yarn.lock
+
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable
 
       - name: Run Prettier
         run: yarn fmt
@@ -89,9 +93,13 @@ jobs:
         with:
           node-version: '24'
           cache: 'yarn'
+          cache-dependency-path: yarn.lock
+
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable
 
       - name: Run linter
         run: yarn lint
@@ -117,9 +125,13 @@ jobs:
         with:
           node-version: '24'
           cache: 'yarn'
+          cache-dependency-path: yarn.lock
+
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable
 
       - name: Run tests
         run: yarn test --coverage
@@ -143,9 +155,13 @@ jobs:
         with:
           node-version: '24'
           cache: 'yarn'
+          cache-dependency-path: yarn.lock
+
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable
 
       - name: Build action
         run: yarn build
@@ -177,9 +193,13 @@ jobs:
         with:
           node-version: '24'
           cache: 'yarn'
+          cache-dependency-path: yarn.lock
+
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable
 
       - name: Build
         run: yarn build

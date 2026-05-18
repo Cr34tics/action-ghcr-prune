@@ -273,12 +273,13 @@ This action is written in TypeScript and compiled into a single JS file using [@
 ### Prerequisites
 
 - Node.js 20+
-- Yarn 1.22+
+- Corepack-enabled Yarn 4 (see `packageManager` in `package.json`)
 
 ### Setup
 
 ```bash
-yarn install --frozen-lockfile
+corepack enable
+yarn install --immutable
 ```
 
 ### Available Scripts
