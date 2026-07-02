@@ -31,10 +31,6 @@
       "groupName": "weekly dependency updates",
       "groupSlug": "weekly-dependencies",
       "groupSingleUpdates": true,
-      "separateMajorMinor": false,
-      "separateMinorPatch": false,
-      "separateMultipleMajor": false,
-      "separateMultipleMinor": false,
       "addLabels": ["dependencies"]
     },
     {
