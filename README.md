@@ -307,6 +307,14 @@ yarn fmt:check    # Check code formatting
 
 The `dist/` folder must be committed because GitHub Actions run the compiled code, not the TypeScript source.
 
+### Dependency Updates
+
+Renovate is configured in `.github/renovate.json` to group regular dependency and toolchain updates into a single weekly PR. The group includes major, minor, patch, digest, pin, pin-digest, and toolchain bump updates from Renovate-managed sources such as npm/Yarn, GitHub Actions, Docker, Go modules, Python, and custom regex managers when present.
+
+Regular Renovate branch creation is limited to Friday 00:00-03:59 in the `Europe/Stockholm` timezone. Renovate schedules only define when the bot is allowed to create branches; they do not force the hosted or self-hosted bot to run at an exact time, so exact PR timing is not guaranteed. The config also limits Renovate PR creation to two concurrent PRs and one PR per hour so the regular dependency group and lock file maintenance can both exist while reducing the chance of repeated regular dependency PRs on the same Friday after a merged update.
+
+Security vulnerability alerts keep their separate `vulnerabilityAlerts` configuration and may bypass the regular weekly cadence when Renovate receives an alert. Lock file maintenance is enabled as its own `lock file maintenance` group and uses Renovate's default Monday schedule because Renovate creates lock-file-maintenance PRs separately from regular dependency update groups; dependency update PRs still update `yarn.lock` when package changes require it.
+
 ## License
 
 The scripts and documentation in this project are released under the [MIT License](LICENSE).
