@@ -17,6 +17,13 @@
   },
   "packageRules": [
     {
+      "description": [
+        "Pin TypeScript to v6 — v7 native compiler breaks ncc/ts-loader and typescript-eslint"
+      ],
+      "matchDepNames": ["typescript"],
+      "allowedVersions": "<7"
+    },
+    {
       "description": ["Group all regular dependency and toolchain updates"],
       "matchUpdateTypes": [
         "major",
