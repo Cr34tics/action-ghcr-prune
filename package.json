@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "GitHub Action to prune containers from GitHub Container Registry (ghcr.io)",
   "main": "dist/index.js",
-  "packageManager": "yarn@4.17.0",
+  "packageManager": "yarn@4.17.1",
   "scripts": {
     "build": "ncc build src/index.ts -o dist -m --license licenses.txt",
     "test": "vitest run",
@@ -41,13 +41,13 @@
   "devDependencies": {
     "@eslint/compat": "2.1.0",
     "@eslint/js": "10.0.1",
-    "@types/node": "25.9.4",
+    "@types/node": "25.9.5",
     "@vercel/ncc": "0.44.1",
-    "@vitest/coverage-v8": "4.1.9",
+    "@vitest/coverage-v8": "4.1.10",
     "eslint": "10.6.0",
-    "prettier": "3.9.4",
+    "prettier": "3.9.5",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.62.1",
-    "vitest": "4.1.9"
+    "typescript-eslint": "8.63.0",
+    "vitest": "4.1.10"
   }
 }
